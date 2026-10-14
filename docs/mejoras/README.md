@@ -8,6 +8,8 @@ La auditoría establece una línea base; no define todavía un plan general de r
 
 Ver [Hoja de ruta — histórico, puntajes, reportes y PDF individual](ROADMAP-2026-10-periodos-puntajes-reportes-pdf.md).
 
-**Orden de trabajo:** MEJ-001 Histórico y creación de periodos → MEJ-002 Puntajes → MEJ-003 Reportes por periodo → MEJ-004 PDF individual.
+**Orden de trabajo:** MEJ-001 Histórico y creación de periodos → MEJ-002 Puntajes → MEJ-003 Reportes por periodo → MEJ-004 PDF individual → **MEJ-005 Reasignación manual de evaluador (prioridad baja)**.
+
+[MEJ-005 — Reasignación manual y auditada del evaluador](MEJ-005-reasignacion-manual-evaluador.md).
 
 El plan es documental: ninguna mejora modifica API, React ni notificaciones hasta que se autorice su implementación.
