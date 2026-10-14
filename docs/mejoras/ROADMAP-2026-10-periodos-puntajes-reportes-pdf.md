@@ -7,9 +7,9 @@
 
 ## 1. Objetivo y decisiones de alcance
 
-Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual y (5) permitir, en fase posterior, la reasignación manual y auditada de evaluadores durante el periodo.
+Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual y (5) **verificar** si ya existe una actualización automática del evaluador al cambiar un empleado; solo si hace falta, evaluar posteriormente una opción manual.
 
-- **Orden de prioridad acordado:** P1 → P2 → P3 → P4 → P5. La reasignación manual de evaluador (P5) es **prioridad baja** y no se adelanta a P1.
+- **Orden de prioridad acordado:** P1 → P2 → P3 → P4 → P5. P5 queda **pendiente de verificar código existente**, con prioridad baja; no se adelanta a P1.
 - **Estrategia:** documentar y resolver cada mejora antes de comenzar la siguiente; no implementar las cuatro en una sola intervención.
 - **Fuera de alcance por ahora:** parches generales de seguridad y permisos, refactor global, módulos no relacionados, nuevos reportes compilados, rediseño visual completo y cambios en código PHP legado.
 - **Actualización posterior a la auditoría:** el responsable del proyecto indica que **ya descomentó el middleware de autenticación**. Por tanto, el diagnóstico previo de `app.use(authenticate)` comentado es una foto histórica, **no una confirmación del estado actual**. No se programa una intervención general de seguridad en esta hoja de ruta. Cada cambio sí debe respetar los controles que ya existan y no ampliar inadvertidamente el acceso a datos.
@@ -23,7 +23,7 @@ Evolucionar el módulo existente para (1) gestionar correctamente los periodos h
 | **P2** | MEJ-002 | Revisión y corrección de puntajes | Regla de cálculo aprobada e idéntica en React y Node; pruebas numéricas. |
 | **P3** | MEJ-003 | Dashboard y consultas por periodo | Selector de periodo y estadísticas estrictamente asociadas al elegido. |
 | **P4** | MEJ-004 | PDF individual | Descarga de evaluaciones completadas desde el detalle de Gestión Humana y consulta del evaluador, reutilizando el PDF existente. |
-| **P5** | MEJ-005 | Reasignación administrativa de evaluador | Transferencia manual, individual y auditable de la asignación de una evaluación durante el periodo, sin modificar HF-002 automáticamente. |
+| **P5** | MEJ-005 | Verificar cambios existentes de evaluador | **Pendiente:** confirmar si al cambiar jefe/proyecto se actualiza el evaluador, con qué filtros de periodo/estado y sobre qué registros; estudiar reasignación manual solo si persiste una brecha. |
 
 ### Dependencia transversal
 
@@ -164,15 +164,15 @@ Existe `GET /api/employee-evaluations/evaluations/:id/pdf`, la generación con P
 - Nombre de archivo y datos que se incluyen en el documento.
 - Si la constancia de recibido se incorpora en el PDF y qué ocurre cuando el acuse llega después de generarlo.
 
-## 7. P5 / MEJ-005 — Reasignación manual de evaluador (prioridad baja)
+## 7. P5 / MEJ-005 — Verificar comportamiento existente antes de proponer reasignación (prioridad baja)
 
-Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. La futura mejora permitiría a un administrador autorizado reasignar **una evaluación concreta** sin regenerar todas las asignaciones, preservando `periodId`, `evaluationId`, el histórico y un registro auditable del cambio. No se plantea evaluar siempre con el jefe actual ni modificar la fuente de jefes HF-002.
+Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. El responsable recuerda un ajuste implementado que podría **actualizar el evaluador cuando cambia un empleado**. Antes de declarar una funcionalidad faltante, debe verificarse dónde está esa lógica, qué evento la dispara y si filtra periodo publicado, periodo vigente por fecha, evaluación activa y/o estados de evaluación. Solo si se demuestra una brecha se diseñaría una acción manual.
 
-- **Propuesta inicial:** permitir `PENDING` con motivo obligatorio e historial de evaluador anterior/nuevo, administrador y fecha.
-- **`IN_PROGRESS`:** pendiente de definir, ya que puede contener borradores de otro evaluador.
-- **`COMPLETED`:** no reasignable por la operación ordinaria.
-- **Dependencias:** consultas por evaluador, recordatorios, reportes y controles de acceso de la nueva acción; no constituye una reforma general de seguridad.
-- **Fase:** backlog, sin análisis técnico nuevo ni implementación en P1.
+- **Primero:** inspección específica de cambios de jefe/proyecto (incluido el legado PHP solo si el flujo pasa por allí); documentar consulta exacta y efecto sobre `evaluatorId` sin ejecutar cambios.
+- **`IN_PROGRESS`:** comprobar si la actualización existente alcanza evaluaciones con respuestas guardadas y si preserva autoría.
+- **`COMPLETED`:** comprobar si la actualización existente toca evaluaciones finalizadas o de años anteriores; no modificar este comportamiento sin decisión.
+- **Después, solo si falta funcionalidad:** comparar una acción manual administrativa y sus efectos en reportes, notificaciones y trazabilidad.
+- **Fase:** pendiente de validación, al final del backlog; sin desarrollo autorizado ni cambios en P1.
 
 Ver [MEJ-005 — Reasignación manual de evaluador](MEJ-005-reasignacion-manual-evaluador.md).
 
