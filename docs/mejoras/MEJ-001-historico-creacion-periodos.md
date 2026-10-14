@@ -671,3 +671,44 @@ El responsable del proyecto reportó **seis comprobaciones manuales exitosas (6/
 **Estado de cierre:** **flujo funcional principal de P1.2 validado**. Quedan **sin validar**: pruebas explícitas de concurrencia, token `updatedAt` obsoleto, conflictos 404/409, rechazo de `DELETE` a publicados, borradores anómalos con relaciones históricas, operaciones paralelas y error de red. La validación funcional no equivale a cobertura integral de las protecciones backend.
 
 **Siguiente etapa:** P1.3 — selección correcta del periodo vigente por fechas en Bogotá para «Mis Evaluaciones» y recordatorios; no confundir `isActive=true` (publicado) con vigencia. Reportes por `periodId` y su selector visual quedan principalmente para P3. No ejecutar envíos ni publicaciones reales durante la implementación y las pruebas.
+
+
+## 21. P1.3 — Selección determinista del periodo vigente (aprobado para trabajar el 2026-10-14)
+
+**Decisión del responsable:** continuar con P1.3, conservando la separación de alcance respecto de P3 y P1.4.
+
+### Reglas funcionales aprobadas
+
+1. `EvaluationPeriod.isActive=true` significa **publicado**, no «vigente hoy». No desactivar automáticamente los publicados que ya finalizaron.
+2. Un periodo operativo es el **publicado cuya ventana incluye el día de negocio actual en `America/Bogota`**, comparando las fechas de calendario inclusivamente: `startDate <= hoyBogota <= endDate`.
+3. Un publicado `SCHEDULED` (futuro) no reemplaza la campaña operativa antes de su fecha inicial. Un `FINISHED` no se usa para la operación actual tras su fecha final.
+4. Si **no existe** periodo operativo, «Mis Evaluaciones» muestra un estado informativo/sin periodo vigente; no selecciona silenciosamente un publicado futuro ni uno vencido.
+5. Los **recordatorios diarios** se generan solo para el periodo que realmente está vigente. Fuera de la ventana no deben producirse jobs de recordatorio.
+6. Si por datos anómalos aparecen **varios candidatos vigentes**, evitar elegir uno arbitrariamente; registrar la ambigüedad y **no encolar recordatorios**. El comportamiento de error/estado vacío para la vista operativa debe ser explícito.
+7. La selección histórica debe ser por `periodId` cuando se solicite un periodo específico; **el selector de periodo del dashboard y sus filtros son P3**. P1.3 debe inventariar los consumidores de selección implícita y corregir los de operación actual sin rediseñar reportes.
+8. La comparación debe respetar la semántica de `@db.Date` de Prisma/PostgreSQL y el calendario de Bogotá, sin depender del instante UTC ni terminar anticipadamente durante el día final.
+
+### Alcance técnico aprobado
+
+- Localizar usos directos/indirectos de `getActivePeriodOrThrow`, consultas `findFirst({isActive:true})` y funciones equivalentes **dentro del módulo de evaluaciones y su scheduler de recordatorios**. Registrar cuáles son operativos, históricos o de reportes.
+- Implementar una regla/servicio centralizado para resolver el periodo **vigente por fecha**.
+- Integrar la selección correcta en «Mis Evaluaciones» (resumen/listado) y en el productor/consulta de recordatorios. Evitar que una parte use el periodo más reciente publicado y otra el primero.
+- Mantener contratos existentes cuando sea posible; si el cambio de respuesta de «sin periodo» afecta UI, ajustar únicamente la vista del módulo necesaria para mostrar el estado informativo.
+- **No cambiar** publicación, borradores, generación de asignaciones, cálculo de puntajes, PDF, reasignación por trigger ni snapshots históricos en este incremento.
+- **No implementar todavía P3:** nuevo selector de periodo en reporte, filtros o consolidaciones. Si las consultas del dashboard representan un riesgo inmediato de seleccionar periodo arbitrario, documentar el impacto y proponer un ajuste mínimo antes de ampliar el alcance.
+
+### Aceptación y pruebas
+
+- Día de inicio en Bogotá: periodo operativo desde ese día.
+- Día de fin en Bogotá: permanece operativo hasta terminar ese día.
+- Día siguiente al fin: no hay periodo operativo.
+- Solo periodo histórico 2025: «Mis Evaluaciones» sin campaña vigente; recordatorios sin jobs.
+- Publicado futuro y publicado vencido: no seleccionar ninguno.
+- Publicado vigente junto a otros publicados no solapados: seleccionar el vigente únicamente.
+- Dos periodos simultáneamente vigentes por anomalía: no selección arbitraria ni recordatorios.
+- Confirmar mismo `periodId` en resumen, listado y destinatarios del recordatorio.
+- Confirmar que no se alteran registros, snapshots ni resultados de años anteriores.
+- Comprobar compilación y lint dirigido; pruebas unitarias pequeñas de fechas/selección **opcionales**, sin introducir una suite de testing global.
+- Ninguna prueba debe publicar periodos reales ni disparar correos o jobs productivos. Para comprobar recordatorios, usar dobles/stubs o inspección controlada sin encolar.
+
+**Estado:** reglas acordadas; **pendiente implementación y verificación con Codex**. P1.1–P1.2 permanecen documentados con sus pruebas y límites de cobertura.
