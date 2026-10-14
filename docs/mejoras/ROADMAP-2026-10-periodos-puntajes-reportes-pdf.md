@@ -7,9 +7,9 @@
 
 ## 1. Objetivo y decisiones de alcance
 
-Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual y (5) **verificar** si ya existe una actualización automática del evaluador al cambiar un empleado; solo si hace falta, evaluar posteriormente una opción manual.
+Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual y (5) documentar, cuando se priorice, las condiciones del trigger ya existente y funcional que actualiza al evaluador.
 
-- **Orden de prioridad acordado:** P1 → P2 → P3 → P4 → P5. P5 queda **pendiente de verificar código existente**, con prioridad baja; no se adelanta a P1.
+- **Orden de prioridad acordado:** P1 → P2 → P3 → P4 → P5. P5 queda **pendiente de documentación técnica detallada del trigger existente**, con prioridad baja; no se adelanta a P1.
 - **Estrategia:** documentar y resolver cada mejora antes de comenzar la siguiente; no implementar las cuatro en una sola intervención.
 - **Fuera de alcance por ahora:** parches generales de seguridad y permisos, refactor global, módulos no relacionados, nuevos reportes compilados, rediseño visual completo y cambios en código PHP legado.
 - **Actualización posterior a la auditoría:** el responsable del proyecto indica que **ya descomentó el middleware de autenticación**. Por tanto, el diagnóstico previo de `app.use(authenticate)` comentado es una foto histórica, **no una confirmación del estado actual**. No se programa una intervención general de seguridad en esta hoja de ruta. Cada cambio sí debe respetar los controles que ya existan y no ampliar inadvertidamente el acceso a datos.
@@ -23,7 +23,7 @@ Evolucionar el módulo existente para (1) gestionar correctamente los periodos h
 | **P2** | MEJ-002 | Revisión y corrección de puntajes | Regla de cálculo aprobada e idéntica en React y Node; pruebas numéricas. |
 | **P3** | MEJ-003 | Dashboard y consultas por periodo | Selector de periodo y estadísticas estrictamente asociadas al elegido. |
 | **P4** | MEJ-004 | PDF individual | Descarga de evaluaciones completadas desde el detalle de Gestión Humana y consulta del evaluador, reutilizando el PDF existente. |
-| **P5** | MEJ-005 | Verificar cambios existentes de evaluador | **Pendiente:** confirmar si al cambiar jefe/proyecto se actualiza el evaluador, con qué filtros de periodo/estado y sobre qué registros; estudiar reasignación manual solo si persiste una brecha. |
+| **P5** | MEJ-005 | Documentar trigger existente de cambio de evaluador | **Confirmado por responsable:** trigger implementado y funcional. **Pendiente futuro:** especificar tablas, filtros de periodo/estado y comportamiento histórico. Sin cambios ahora. |
 
 ### Dependencia transversal
 
@@ -166,13 +166,13 @@ Existe `GET /api/employee-evaluations/evaluations/:id/pdf`, la generación con P
 
 ## 7. P5 / MEJ-005 — Verificar comportamiento existente antes de proponer reasignación (prioridad baja)
 
-Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. El responsable recuerda un ajuste implementado que podría **actualizar el evaluador cuando cambia un empleado**. Antes de declarar una funcionalidad faltante, debe verificarse dónde está esa lógica, qué evento la dispara y si filtra periodo publicado, periodo vigente por fecha, evaluación activa y/o estados de evaluación. Solo si se demuestra una brecha se diseñaría una acción manual.
+Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. El responsable confirma que **implementó un trigger para actualizar al evaluador y funciona**. No se realizará revisión ni cambio ahora. A futuro, si se solicita, únicamente se documentará el SQL exacto y sus condiciones sobre periodo, estado e histórico.
 
-- **Primero:** inspección específica de cambios de jefe/proyecto (incluido el legado PHP solo si el flujo pasa por allí); documentar consulta exacta y efecto sobre `evaluatorId` sin ejecutar cambios.
+- **Pendiente futuro:** describir el trigger real y qué condición usa para identificar evaluaciones afectadas, sin intervenirlo ahora.
 - **`IN_PROGRESS`:** comprobar si la actualización existente alcanza evaluaciones con respuestas guardadas y si preserva autoría.
 - **`COMPLETED`:** comprobar si la actualización existente toca evaluaciones finalizadas o de años anteriores; no modificar este comportamiento sin decisión.
-- **Después, solo si falta funcionalidad:** comparar una acción manual administrativa y sus efectos en reportes, notificaciones y trazabilidad.
-- **Fase:** pendiente de validación, al final del backlog; sin desarrollo autorizado ni cambios en P1.
+- **Sin funcionalidad nueva solicitada:** no implementar nueva interfaz de reasignación mientras el trigger vigente resuelva el caso.
+- **Fase:** documentación técnica pendiente, al final del backlog; sin revisión inmediata, desarrollo ni cambios en P1.
 
 Ver [MEJ-005 — Reasignación manual de evaluador](MEJ-005-reasignacion-manual-evaluador.md).
 
