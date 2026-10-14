@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** diagnóstico verificado en código; pendiente de decisiones e implementación  
+**Estado:** microauditoría terminada; **P1.1 implementado en React según Codex, pendiente de validación manual**; P1.2–P1.4 pendientes  
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -445,3 +445,51 @@ La lista de 22 casos de la sección 11 es el **plan de aceptación**, no la prom
 **Orden sugerido:** resolver primero contratos y selección por periodo; implementar backend de borrador/vigencia y UI; realizar verificación manual e integración segura de cada incremento. Agregar automatizaciones puntuales solo si aportan valor inmediato y no desvían el alcance P1.
 
 Esta propuesta no requiere modificar evaluaciones históricas ni desactivar el periodo anterior. Requiere decisiones funcionales de la sección 13 antes de autorizar cambios de código o esquema.
+
+
+## 17. Avance de implementación — P1.1 (reporte de Codex, 2026-10-14)
+
+**Estado:** implementado localmente en `sisproing-app` **según reporte del ejecutor**; **no verificado de manera independiente ni aceptado funcionalmente todavía**. La documentación central registra el reporte; no afirma que los cambios hayan sido publicados en la rama remota.
+
+### Cambios reportados (exclusivamente React)
+
+- Estados unificados a `DRAFT`, `SCHEDULED`, `ACTIVE`, `FINISHED`; se retiró `FINALIZED`.
+- Pestaña «Borradores» y listado inicial en «Todos» para mostrar el histórico.
+- Acción visible «Nuevo periodo».
+- Si existe borrador: diálogo para «Continuar borrador» en lugar de generar o editar uno silenciosamente.
+- Sin borrador: formulario de creación vacío.
+- Indicación visible de edición/continuación del borrador.
+- Si `GET /periods/draft` falla: bloqueo de Guardar/Publicar para evitar duplicados.
+- Después de publicar: limpieza de `draftId` y del formulario.
+
+**Archivos reportados:**
+
+1. `sisproing-app/src/modules/employee-evaluations/periods/periods.service.ts`
+2. `sisproing-app/src/modules/employee-evaluations/periods/PeriodsPage.tsx`
+3. `sisproing-app/src/modules/employee-evaluations/periods/components/PeriodsItem.tsx`
+4. `sisproing-app/src/modules/employee-evaluations/layouts/ConfigurationLayout.tsx`
+
+**Validaciones técnicas declaradas por Codex:**
+
+- `npm run typecheck`: correcto.
+- ESLint dirigido a los cuatro archivos: correcto.
+- `npm run build`: correcto.
+- `git diff --check`: correcto.
+- Lint global: 63 errores y 6 advertencias **reportados como preexistentes en otros archivos**, no imputados a P1.1; no se hizo confirmación independiente.
+
+### Aceptación pendiente
+
+La aprobación de P1.1 requiere ejecutar y registrar el checklist manual en un ambiente seguro (sin publicar un periodo real): pestañas, estados, creación sin borrador, continuación con borrador, bloqueo ante error `getDraft`, reinicio del formulario tras publicación simulada y permanencia del histórico. Las pruebas de flujo exitoso de publicación real corresponden a P1.2 y posteriores en un entorno aislado.
+
+**Límite:** no hubo cambios de API, PostgreSQL, notificaciones ni periodos históricos, según el reporte de Codex.
+
+### Próximo incremento — P1.2 (sin iniciar)
+
+- Garantizar desde API un borrador único, incluyendo concurrencia y respuesta de conflicto controlada, sin sobrescribir registros existentes.
+- Restringir el `update` genérico a borradores; no permitir modificar un periodo publicado/histórico por ese endpoint.
+- Revisar la semántica de `isActive` (publicación, no vigencia).
+- Mantener integridad de snapshots y asignaciones al publicar; evitar duplicados/reintentos.
+- Antes de imponer unicidad, inspeccionar con consultas de **solo lectura** si existen borradores múltiples o periodos `isActive=false` con datos históricos.
+- No introducir un framework general de testing: checklist manual e integración segura son mínimos; pruebas automatizadas puntuales son opcionales.
+
+**No se autoriza aquí ejecutar migraciones, publicar periodos reales ni tocar otros módulos.**
