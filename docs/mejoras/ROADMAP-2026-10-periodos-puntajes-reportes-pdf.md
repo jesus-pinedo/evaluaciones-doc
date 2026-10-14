@@ -187,7 +187,9 @@ Para **cada** MEJ-001…MEJ-005:
 5. Validar con datos de prueba; especialmente conservar resultados históricos.
 6. Actualizar su documento y registrar qué quedó verificado.
 
-**Estado actualizado:** P1 tiene microauditoría documentada y decisiones de borrador único/inmutabilidad aprobadas; pendiente implementación. P2, P3, P4 y P5 en cola, con P5 como último bloque. Ninguna modificación de código queda autorizada por este documento.
+**Estado actualizado (2026-10-14):** P1 tiene microauditoría documentada; **P1.1 implementado exclusivamente en React según reporte de Codex**, con typecheck/build y lint dirigido correctos; **validación manual pendiente**. El lint global sigue con incidencias ajenas reportadas. **P1.2 (reglas backend y borrador único), P1.3 (vigencia operativa) y P1.4 (histórico y snapshots) pendientes**. P2, P3, P4 y P5 en cola, P5 como última prioridad para documentar el trigger existente. No se autoriza desde este documento una publicación real ni cambios en producción.
+
+Ver [avance y checklist de P1.1](MEJ-001-historico-creacion-periodos.md#17-avance-de-implementación--p11-reporte-de-codex-2026-10-14).
 
 ## 9. Fuentes de referencia
 
