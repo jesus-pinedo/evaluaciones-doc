@@ -3,14 +3,16 @@
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de registro:** 2026-10-14  
 **Prioridad:** P5 — Baja (último bloque de la hoja de ruta, después de P4)  
-**Estado:** **PENDIENTE DE VERIFICACIÓN** — posible funcionalidad existente, sin brecha ni desarrollo nuevo confirmados  
-**Origen:** durante la campaña anterior (~mes y medio), hubo movimientos de personal y solicitudes de cambio de evaluador. **Actualización del responsable (2026-10-14):** recuerda haber realizado un ajuste que actualiza el evaluador al cambiar un empleado, pero desconoce exactamente si filtra una evaluación/periodo activo u otra condición. **Se debe verificar el código existente antes de proponer implementar nada.**
+**Estado:** **PENDIENTE DE DOCUMENTACIÓN TÉCNICA DETALLADA** — trigger existente y funcionando, según confirmación del responsable; sin nueva funcionalidad solicitada  
+**Origen:** durante la campaña anterior (~mes y medio), hubo cambios de proyecto/jefe. **Confirmación del responsable (2026-10-14):** implementó personalmente un **trigger que actualiza al evaluador y comprobó que funciona**. No solicita investigar ni modificar esa funcionalidad ahora; solo deja pendiente documentar, en una fase posterior, las condiciones precisas del trigger (qué evento lo dispara, qué estados y periodos filtra y qué ocurre con el histórico). Esta afirmación está confirmada por el responsable, **no por una inspección del código/DB durante esta conversación**.
+
+> **NOTA VIGENTE (2026-10-14):** P5 no es un requerimiento para implementar una nueva reasignación. El responsable confirmó que **ya creó un trigger y funciona**. Todo lo descrito más abajo como “reasignación manual”, “microauditoría” o “criterios candidatos” es material exploratorio anterior, **no una tarea autorizada**. Único pendiente: describir en el futuro, si se solicita, qué evaluación/periodo selecciona el trigger, sin tocar el código ahora.
 
 ## 1. Contexto y objetivo
 
 Las evaluaciones se generan inicialmente como **snapshot de la relación jefe–colaborador al publicar el periodo**, desde `EmployeeManager` / HF-002. Sin embargo, **no está confirmado** que los movimientos posteriores mantengan la asignación intacta: el responsable recuerda un ajuste existente que podría actualizar el evaluador tras cambios del empleado.
 
-**Primera meta:** identificar si ya existe lógica de actualización, bloqueo o reasignación automática; localizar su disparador y sus filtros. Solo si el comportamiento existente no resuelve el caso de negocio se evaluará permitir a un **administrador del módulo** reasignar manualmente evaluaciones.
+**Estado operativo reportado:** el trigger de reasignación automática **ya existe y funciona**. En esta etapa **no se propone desarrollo manual ni auditoría inmediata**. Cuando el responsable lo priorice, se documentarán el SQL exacto, evento `UPDATE`, tabla(s), predicados de periodo/estado y trazabilidad, sin sustituir el mecanismo existente.
 
 Esto es una mejora **de prioridad baja**. **No forma parte de la implementación de P1** ni autoriza cambios anticipados en API, frontend, Prisma, notificaciones o PHP.
 
@@ -139,4 +141,4 @@ No inspeccionar otros módulos de negocio ni modificar PHP legado. No modificar 
 
 La aprobación de P1 es **un único borrador global y periodos publicados/históricos inalterables por defecto**. P5 **no cambia esa decisión**: una reasignación administrativa puntual, si se aprueba, debe ser una operación explícita y auditada durante un periodo permitido, sin editar snapshots ni reabrir indiscriminadamente periodos finalizados.
 
-**Estado final:** P5 queda **PENDIENTE DE VERIFICACIÓN DE FUNCIONALIDAD EXISTENTE** y al final del backlog. La implementación manual es condicional a los hallazgos de la microauditoría; sin desarrollo autorizado.
+**Estado final:** P5 es **documentación técnica pendiente sobre un trigger existente que el responsable confirma funcional**, al final del backlog. No hacer auditoría ahora ni diseñar por defecto una reasignación manual; no hay desarrollo autorizado.
