@@ -3,26 +3,48 @@
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de registro:** 2026-10-14  
 **Prioridad:** P5 — Baja (último bloque de la hoja de ruta, después de P4)  
-**Estado:** necesidad funcional registrada; diseño pendiente de microauditoría, aprobación e implementación  
-**Origen:** durante la campaña anterior (~mes y medio), personas cambiaron de proyecto/jefe y Gestión Humana solicitó modificar manualmente el evaluador de asignaciones ya generadas.
+**Estado:** **PENDIENTE DE VERIFICACIÓN** — posible funcionalidad existente, sin brecha ni desarrollo nuevo confirmados  
+**Origen:** durante la campaña anterior (~mes y medio), hubo movimientos de personal y solicitudes de cambio de evaluador. **Actualización del responsable (2026-10-14):** recuerda haber realizado un ajuste que actualiza el evaluador al cambiar un empleado, pero desconoce exactamente si filtra una evaluación/periodo activo u otra condición. **Se debe verificar el código existente antes de proponer implementar nada.**
 
 ## 1. Contexto y objetivo
 
-Hoy las evaluaciones se generan como **snapshot de la relación jefe–colaborador al publicar el periodo**, desde `EmployeeManager` / HF-002. Los movimientos de personal posteriores no cambian automáticamente la asignación de la evaluación.
+Las evaluaciones se generan inicialmente como **snapshot de la relación jefe–colaborador al publicar el periodo**, desde `EmployeeManager` / HF-002. Sin embargo, **no está confirmado** que los movimientos posteriores mantengan la asignación intacta: el responsable recuerda un ajuste existente que podría actualizar el evaluador tras cambios del empleado.
 
-Se desea que un **administrador del módulo de Evaluaciones**, en casos excepcionales y documentados, pueda **reasignar una evaluación existente a otro evaluador** durante un periodo operativo sin reconstruir todas las asignaciones ni cambiar automáticamente las relaciones vigentes en HF-002.
+**Primera meta:** identificar si ya existe lógica de actualización, bloqueo o reasignación automática; localizar su disparador y sus filtros. Solo si el comportamiento existente no resuelve el caso de negocio se evaluará permitir a un **administrador del módulo** reasignar manualmente evaluaciones.
 
 Esto es una mejora **de prioridad baja**. **No forma parte de la implementación de P1** ni autoriza cambios anticipados en API, frontend, Prisma, notificaciones o PHP.
 
 ## 2. Evidencia de la auditoría previa
 
-- `docs/funcional/reglas-negocio.md`: la asignación se copia al publicar desde `EmployeeManager`; los cambios posteriores de jefe no actualizan evaluaciones existentes.
+- `docs/funcional/reglas-negocio.md`: documenta la asignación inicial por snapshot y afirma que cambios posteriores no actualizan evaluaciones, **pero esa conclusión proviene de una auditoría que no inspeccionó el flujo del sistema legado para cambiar jefe/proyecto**. Queda **pendiente de contrastar** con el código real de actualizaciones de empleado.
 - `docs/tecnico/modelo-datos.md`: `Evaluation` almacena `periodId`, `evaluatorId`, `employeeId`, estado y auditoría. Hay una restricción `@@unique([periodId, evaluatorId, employeeId])` en el modelo declarado.
 - `docs/tecnico/backend.md`: no se documentó un servicio administrativo de reasignación; `generateEvaluationsForPeriod` crea las asignaciones iniciales.
-- `docs/auditoria/estado-implementacion.md`: la reasignación después de publicar no figura como implementada.
+- `docs/auditoria/estado-implementacion.md`: la reasignación no fue encontrada **dentro de los módulos inspeccionados**; no prueba que no exista en otro punto del flujo específico HF-002.
 - `docs/mejoras/MEJ-001-historico-creacion-periodos.md`: los periodos publicados deben preservar sus snapshots y resultados; la reasignación administrativa, si se aprueba, debe tratarse como **excepción explícita**, no como habilitación para editar libremente el histórico.
 
-**Límite de evidencia:** este registro no constituye una nueva inspección del código. Antes de diseñar el endpoint o la migración, confirmar el modelo y los flujos reales con una microauditoría acotada.
+**Límite de evidencia:** este registro no constituye una nueva inspección del código. **No afirmar que la reasignación automática está ausente.** Antes de diseñar endpoints, formularios o migraciones, verificar expresamente las rutas que realizan cambios de jefe/proyecto de un empleado (incluido el punto preciso del legado PHP si allí ocurre), sin auditar el resto de módulos.
+
+## 2.1 Microauditoría requerida de la lógica ya existente (SOLO LECTURA)
+
+**Pregunta central:** al cambiar el jefe o proyecto de un empleado, ¿se consulta una evaluación y se cambia su `evaluatorId`? Si sucede, ¿cómo decide el sistema cuáles registros cambiar?
+
+Se debe trazar el flujo real desde la acción que guarda el cambio hasta cualquier actualización en `evaluation.evaluations` o la entidad Prisma `Evaluation`:
+
+1. **Disparador exacto:** cambio de jefe inmediato (HF-002), cambio de proyecto/centro de costo, edición del empleado, proceso programado, trigger SQL o servicio/endpoint intermedio.
+2. **Ubicación exacta:** repositorio, ruta, función y llamadas entre PHP, Node, Prisma y SQL que intervengan. Inspeccionar **solo** el código del flujo de cambios de jefe/proyecto cuando sea necesario, incluso si está en `sisproing/`; no hacer auditoría del legado.
+3. **Selección de evaluaciones:** distinguir si usa `EvaluationPeriod.isActive=true`, `Evaluation.isActive=true`, estados `PENDING`/`IN_PROGRESS`/`COMPLETED`, fechas del periodo (Bogotá), último periodo publicado o una consulta sin filtros.
+4. **Alcance del cambio:** confirmar si hace `UPDATE evaluatorId` sobre la evaluación original, crea una nueva asignación, bloquea el cambio o no interviene en Evaluaciones.
+5. **Integridad:** verificar qué ocurre con respuestas ya guardadas, evaluaciones completadas, acuses, histórico de años previos, restricciones únicas y duplicados.
+6. **Efectos posteriores:** confirmar si listas de pendientes, reportes, correos y recordatorios obtienen el evaluador actualizado.
+7. **Auditoría del movimiento:** comprobar si registra jefe anterior/nuevo, usuario y fecha, y cómo se recupera ese histórico.
+
+**Resultado esperado:** una matriz de casos con la condición SQL/Prisma exacta que define «evaluación activa» y evidencia por archivo y función. Si solo es verificable en base de datos desplegada (trigger/función SQL), dejarlo **pendiente de comprobar**, sin inventar el comportamiento.
+
+**No ejecutar cambios reales de jefe**, ni actualizaciones de base, correos o jobs durante esta verificación.
+
+## 2.2 Estado de planificación
+
+Esta mejora queda **en pausa, pendiente de validar el comportamiento existente**. Los escenarios y reglas de los apartados siguientes son únicamente **hipótesis para una eventual mejora manual**; no constituyen funcionalidades faltantes confirmadas ni acuerdos de implementación.
 
 ## 3. Escenario de negocio
 
@@ -75,7 +97,9 @@ Solo un perfil autorizado debería ver la acción; el backend debe validar el pe
 
 ## 7. Revisión técnica futura delimitada
 
-Cuando se alcance P5, auditar exclusivamente:
+Primero verificar el flujo de cambio de jefe/proyecto señalado en el apartado 2.1. Si el código está en `sisproing/` (legado PHP), se permite **únicamente** inspeccionar el archivo y sus llamadas directas que actualicen empleado/jefe/evaluación. No ampliar la auditoría a otros módulos.
+
+Si posteriormente se necesita diseñar una reasignación manual, revisar exclusivamente:
 
 - `api/src/modules/employee-evaluations/evaluations/evaluations.service.js` y sus controladores/rutas.
 - `api/prisma/modules/evaluations.prisma`, y referencias necesarias a `EmployeeManager` / empleados.
@@ -84,7 +108,7 @@ Cuando se alcance P5, auditar exclusivamente:
 - Productores de recordatorios de evaluación, únicamente para asegurar que el destinatario actualizado reciba los recordatorios.
 - PDF y trazabilidad del evaluador únicamente si aparece impacto demostrado.
 
-No inspeccionar otros módulos de negocio y no cambiar PHP legado en esta mejora.
+No inspeccionar otros módulos de negocio ni modificar PHP legado. No modificar código de ningún repositorio durante la validación.
 
 ## 8. Criterios de aceptación candidatos
 
@@ -115,4 +139,4 @@ No inspeccionar otros módulos de negocio y no cambiar PHP legado en esta mejora
 
 La aprobación de P1 es **un único borrador global y periodos publicados/históricos inalterables por defecto**. P5 **no cambia esa decisión**: una reasignación administrativa puntual, si se aprueba, debe ser una operación explícita y auditada durante un periodo permitido, sin editar snapshots ni reabrir indiscriminadamente periodos finalizados.
 
-**Estado:** documentado en backlog; sin implementación autorizada.
+**Estado final:** P5 queda **PENDIENTE DE VERIFICACIÓN DE FUNCIONALIDAD EXISTENTE** y al final del backlog. La implementación manual es condicional a los hallazgos de la microauditoría; sin desarrollo autorizado.
