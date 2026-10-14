@@ -390,16 +390,18 @@ No se encontraron pruebas automatizadas específicas de periodos en los reposito
 
 No se propone recalcular, migrar, desactivar ni volver a publicar periodos anteriores como parte de P1. Si existen registros históricos con `isActive=false` pero con snapshots/evaluaciones, deben inventariarse en una validación controlada antes de migrar estados; no deben ser tratados automáticamente como borradores.
 
-## 13. Decisiones que deben aprobarse antes de implementar
+## 13. Decisiones aprobadas y pendientes antes de implementar
 
-1. **Borradores:** confirmar política de un único borrador global. Recomendación mínima: uno.
+**Aprobaciones del responsable (2026-10-14):** un **único borrador global** y **periodos publicados/finalizados inalterables por defecto**. Una posible reasignación excepcional de evaluador queda fuera de P1 y se abordará en [MEJ-005](MEJ-005-reasignacion-manual-evaluador.md), mediante una acción específica y con auditoría.
+
+1. **Borradores: APROBADO.** Un único borrador global.
 2. **Terminología:** aprobar `DRAFT`, `SCHEDULED`, `ACTIVE`, `FINISHED`; eliminar `FINALIZED` del contrato actual.
 3. **Fin de vigencia:** confirmar que inicio y fin son inclusivos por día en `America/Bogota`.
 4. **Traslapes:** confirmar si dos periodos pueden compartir el día límite. Recomendación: no; el siguiente inicia al día posterior.
 5. **Publicación futura:** confirmar que se permite publicar por anticipado sin que se convierta en periodo operativo hasta `startDate`.
 6. **Sin periodo vigente:** aprobar estado vacío explícito. Recomendación: no usar automáticamente el publicado más reciente en flujos operativos.
 7. **Periodo sin asignaciones:** decidir si publicar con cero evaluaciones es válido. Recomendación: rechazar.
-8. **Inmutabilidad:** definir si un publicado admite prórroga/corrección de fechas. Recomendación mínima: bloquear edición genérica y diseñar la excepción por separado.
+8. **Inmutabilidad: APROBADO como regla general.** Bloquear edición genérica de periodos publicados e históricos. La política para prórrogas/correcciones continúa pendiente y se diseñará como excepción explícita.
 9. **Cierre persistido:** decidir si `FINISHED` seguirá calculado o habrá cierre administrativo. Recomendación para la primera entrega: mantenerlo calculado y no introducir cierre persistido todavía.
 10. **Cancelación/anulación:** decidir el significado y efectos; no reutilizar `isActive=false` mientras no exista la regla.
 11. **Vista histórica:** confirmar que debe mostrar los snapshots completos del periodo, no catálogos actuales.
