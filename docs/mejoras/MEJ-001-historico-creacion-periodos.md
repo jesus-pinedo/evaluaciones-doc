@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2: aprobada opción de descartar borrador no publicado**; P1.2–P1.4 pendientes de implementación  
+**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado localmente y validado técnicamente, pendiente de validación manual**; P1.3–P1.4 pendientes de implementación
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -528,3 +528,128 @@ La aprobación de P1.1 requiere ejecutar y registrar el checklist manual en un a
 **Pendiente complementario de P1.2:** la garantía de borrador único **debe implementarse en backend** y manejar concurrencia. El botón de React por sí solo no la garantiza. Evaluar solución sin migración cuando sea segura; si exige un índice/constraint nuevo, **presentar el plan y solicitar aprobación antes de ejecutar cualquier migración**.
 
 **Próximo paso:** pedir a Codex implementación acotada a P1.2 tras leer esta decisión. No ampliar aún a P1.3 (resolver periodo vigente) ni P1.4 (vista previa histórica).
+
+## 19. Avance de implementación — P1.2 (2026-10-14)
+
+**Estado:** implementado localmente en `api` y `sisproing-app`; compilación, tipos y lint dirigido correctos. No se ejecutaron migraciones, descartes reales, publicaciones, notificaciones ni cambios sobre periodos históricos. La aceptación funcional permanece pendiente del checklist manual en un ambiente seguro.
+
+### Contrato implementado
+
+Se agregó la operación explícita:
+
+`DELETE /api/employee-evaluations/periods/:id/draft`
+
+Payload requerido:
+
+```json
+{
+  "updatedAt": "fecha ISO recibida al consultar el borrador"
+}
+```
+
+La versión `updatedAt` evita descartar silenciosamente un borrador que otro administrador editó después de abrir la confirmación.
+
+Respuestas de rechazo relevantes:
+
+| Código | HTTP | Condición |
+|---|---:|---|
+| `EVAL_PERIOD_NOT_FOUND` | 404 | El registro no existe o ya fue descartado. |
+| `EVAL_PERIOD_NOT_DRAFT` | 409 | El periodo ya está publicado; incluye `SCHEDULED`, `ACTIVE` y `FINISHED`. |
+| `EVAL_PERIOD_DRAFT_CHANGED` | 409 | Cambió la versión o el estado durante la operación. |
+| `EVAL_PERIOD_DRAFT_HAS_HISTORY` | 409 | Tiene snapshots, evaluaciones o una FK relacionada. |
+| `EVAL_PERIOD_DRAFT_EXISTS` | 409 | Ya existe un borrador al intentar crear otro. |
+| `EVAL_PERIOD_MULTIPLE_DRAFTS` | 409 | Hay más de un `isActive=false` heredado; no se crea ni borra automáticamente. |
+| `EVAL_PERIOD_PUBLISHED_IMMUTABLE` | 409 | Se intentó editar un periodo publicado mediante el `PUT` genérico. |
+| `EVAL_PERIOD_STATE_CHANGE_NOT_ALLOWED` | 400 | Se intentó cambiar `isActive` mediante el `PUT` genérico. |
+
+### Salvaguardas implementadas en backend
+
+1. Crear, editar, publicar y descartar participan en el mismo bloqueo asesor transaccional de PostgreSQL (`pg_advisory_xact_lock`). El bloqueo se comparte entre instancias del API y se libera automáticamente al confirmar o revertir.
+2. La creación consulta el borrador dentro de la transacción bloqueada. Si existe uno, devuelve 409; si detecta al menos dos, devuelve conflicto de inconsistencia sin alterar registros.
+3. El descarte vuelve a leer el periodo dentro de la transacción y rechaza todo `isActive=true`.
+4. Antes de eliminar cuenta `classifications`, `groups`, `questions`, `strengths`, `weaknesses`, `scoreScales` y `evaluations`. Cualquier conteo positivo bloquea la operación. Respuestas, selecciones y resultados dependen de `Evaluation`, por lo cual la presencia de una evaluación bloquea todo el histórico subordinado.
+5. La eliminación usa `deleteMany` condicionado por `id`, `isActive=false` y `updatedAt`; debe afectar exactamente una fila. No elimina relaciones ni ejecuta borrado manual en cascada.
+6. Una restricción FK concurrente (`P2003`) se convierte en `EVAL_PERIOD_DRAFT_HAS_HISTORY`; la operación se revierte.
+7. La publicación ahora toma el mismo bloqueo y comprueba/activa el borrador dentro de una única transacción. Si descarte o publicación gana la carrera, la otra operación recibe 404/409 y no deja snapshots parciales.
+8. El `PUT /periods/:id` solo actualiza borradores. Ya no acepta cambios de `isActive` ni modificaciones sobre periodos publicados.
+
+### Evaluación de migración
+
+**No se requiere migración para P1.2.** La unicidad entre operaciones normales del API queda serializada mediante el bloqueo transaccional y una comprobación dentro de la misma transacción.
+
+Como endurecimiento futuro a nivel de base podría evaluarse un índice único parcial equivalente a «máximo un registro con `is_active=false`». **No se creó ni ejecutó.** Antes de proponerlo para aprobación se requiere:
+
+1. inventario de solo lectura de todos los `isActive=false`;
+2. clasificación de registros heredados con snapshots/evaluaciones;
+3. separar conceptualmente borrador de desactivado/anulado, porque hoy comparten la bandera;
+4. plan explícito para resolver cualquier duplicado sin borrarlo automáticamente.
+
+Aplicar el índice con el modelo actual podría bloquear por registros históricos desactivados y por eso queda fuera de P1.2.
+
+### Cambios de interfaz
+
+- El diálogo de «Nuevo periodo» conserva **Cancelar** y **Continuar borrador**, y agrega **Descartar borrador**.
+- Descartar abre una segunda confirmación con el nombre y la advertencia de que no puede recuperarse.
+- Solo la confirmación final invoca el endpoint.
+- Al completar, el borrador se retira del estado local y se abre Configuración de Períodos; al no existir borrador, el formulario queda vacío y el siguiente guardado crea otro `periodId`.
+- Ante 404, 409 o error de red se muestra el mensaje del backend y se recarga el listado sin afirmar éxito.
+- Se retiraron de las tarjetas las acciones genéricas Editar/Eliminar para periodos publicados o programados. `DRAFT` conserva **Continuar borrador** y todos conservan vista previa.
+
+### Archivos modificados en P1.2
+
+API:
+
+1. `api/src/modules/employee-evaluations/periods/periods.service.js`
+2. `api/src/modules/employee-evaluations/periods/periods.controller.js`
+3. `api/src/modules/employee-evaluations/periods/periods.route.js`
+
+React:
+
+1. `sisproing-app/src/modules/employee-evaluations/periods/periods.service.ts`
+2. `sisproing-app/src/modules/employee-evaluations/periods/PeriodsPage.tsx`
+3. `sisproing-app/src/modules/employee-evaluations/periods/components/PeriodsItem.tsx`
+
+`ConfigurationLayout.tsx` conserva los cambios de P1.1 para limpiar `draftId` al publicar; no requirió cambios adicionales para P1.2.
+
+Documentación:
+
+1. `evaluaciones-docs/docs/mejoras/MEJ-001-historico-creacion-periodos.md`
+
+### Resultados de validación técnica
+
+| Repositorio | Validación | Resultado |
+|---|---|---|
+| `api` | `node --check` sobre servicio, controlador y rutas | Correcto |
+| `api` | `npm run type-check` | Correcto |
+| `api` | `npm run build` | Correcto |
+| `api` | Lint | No existe script de lint configurado |
+| `sisproing-app` | `npm run typecheck` | Correcto |
+| `sisproing-app` | ESLint dirigido a los archivos React/servicio de periodos modificados y `ConfigurationLayout.tsx` | Correcto |
+| `sisproing-app` | `npm run build` | Correcto; solo advertencias informativas por datos desactualizados de Browserslist/baseline |
+| Ambos | `git diff --check` | Correcto |
+
+No se añadió un framework de pruebas ni se ejecutaron endpoints mutantes contra una base real.
+
+### Checklist manual de P1.2 — pendiente de ejecución
+
+Ejecutar solo en ambiente aislado, con datos sintéticos y sin publicar ni enviar notificaciones:
+
+| Caso | Acción | Resultado esperado | Estado |
+|---|---|---|---|
+| Borrador normal | Nuevo periodo → Descartar → confirmar | 200; desaparece el borrador; abre formulario vacío; el histórico conserva sus mismos IDs y datos. | Pendiente |
+| Cancelación inicial | Abrir diálogo y pulsar Cancelar | No se llama DELETE y no cambia el listado. | Pendiente |
+| Cancelación final | Pulsar Descartar y luego Volver | No se llama DELETE y el borrador permanece. | Pendiente |
+| Continuación | Pulsar Continuar borrador | Abre el mismo ID con sus datos; no crea otro registro. | Pendiente |
+| Publicado/histórico | Invocar directamente DELETE sobre `SCHEDULED`, `ACTIVE` o `FINISHED` | 409 `EVAL_PERIOD_NOT_DRAFT`; no cambia ninguna fila. | Pendiente |
+| Borrador con snapshots | Intentar descartar un `isActive=false` anómalo con snapshots | 409 `EVAL_PERIOD_DRAFT_HAS_HISTORY`; no se elimina padre ni relaciones. | Pendiente |
+| Borrador con evaluación/resultados | Intentar descartar un borrador anómalo relacionado | 409 `EVAL_PERIOD_DRAFT_HAS_HISTORY`; evaluaciones, respuestas y resultados permanecen. | Pendiente |
+| Versión obsoleta | Editar el borrador en otra sesión y confirmar desde el diálogo antiguo | 409 `EVAL_PERIOD_DRAFT_CHANGED`; se refresca el listado. | Pendiente |
+| Publicación concurrente simulada | Una sesión publica y otra intenta descartar | Gana una sola operación; descarte recibe 409 si quedó publicado, sin snapshots parciales. No ejecutar publicación real. | Pendiente |
+| Doble descarte | Dos sesiones confirman el mismo borrador | Una obtiene 200; la otra 404; no se afecta otro periodo. | Pendiente |
+| Doble creación | Dos clientes hacen POST simultáneo sin borrador previo | Uno crea; el otro obtiene 409 `EVAL_PERIOD_DRAFT_EXISTS`; queda un borrador. | Pendiente |
+| Borradores heredados múltiples | Consultar/crear con dos `isActive=false` preparados en fixture aislado | 409 `EVAL_PERIOD_MULTIPLE_DRAFTS`; no se crea ni borra nada. | Pendiente |
+| Edición de publicado | Enviar `PUT` a un periodo publicado | 409 `EVAL_PERIOD_PUBLISHED_IMMUTABLE`; fechas, nombre y estado permanecen. | Pendiente |
+| Cambio genérico de estado | Enviar `PUT {isActive:false}` | Rechazo; no transforma un publicado en borrador. | Pendiente |
+| Error de red/servidor | Interrumpir DELETE | La UI muestra error, no afirma éxito y conserva/recarga el estado seguro. | Pendiente |
+
+P1.2 no resuelve periodo vigente, reportes por periodo ni vista previa histórica; esos trabajos continúan reservados para P1.3/P1.4 y mejoras posteriores.
