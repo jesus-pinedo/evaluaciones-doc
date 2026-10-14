@@ -430,6 +430,18 @@ La intervención mínima recomendada se divide en cuatro cambios acotados:
 3. **Hacer determinista la vigencia.** Crear una única función backend que resuelva el periodo vigente por fechas inclusivas de Bogotá; usarla en «Mi equipo» y recordatorios. En consultas históricas, exigir `periodId`. El ajuste completo del dashboard queda para P3, pero P1 debe impedir la selección arbitraria.
 4. **Preservar el histórico.** Mantener cada periodo anterior con su ID, bandera de publicación, snapshots y evaluaciones; servir la vista previa desde snapshots del periodo. No migrar ni recalcular resultados históricos.
 
-Orden sugerido de entrega: primero pruebas de servicio/contrato, luego backend de borrador y vigencia, después React, y finalmente pruebas integradas con correo/cron deshabilitados.
+## 16. Estrategia de validación P1 — proyecto sin suite de pruebas existente
+
+**Contexto confirmado por el responsable (2026-10-14):** `api` y `sisproing-app` todavía no cuentan con una suite automatizada específica para este proyecto. Este plan **no debe exigir adoptar Jest/Vitest u otra infraestructura completa** como condición previa para implementar P1.
+
+- **Obligatorio:** checklist manual de aceptación de P1 sobre ambiente de pruebas con datos representativos, registro de resultados por caso y comprobaciones de integridad por `periodId` antes/después. Sin publicar ni enviar notificaciones reales en producción durante pruebas.
+- **Obligatorio para publicación:** prueba integrada controlada de guardado de borrador, publicación transaccional, snapshots, asignaciones, preservación histórica y selección de periodo; usar ambiente aislado, datos sintéticos y colas/correos deshabilitados.
+- **Deseable, no bloqueante para iniciar:** pruebas automatizadas pequeñas para una función pura de fechas, estados y traslapes, si Codex puede ejecutarlas con las herramientas ya disponibles (por ejemplo `node:test` nativo si la versión de Node lo permite). Inspeccionar `package.json` y herramientas existentes antes de elegir framework.
+- **No requerido en P1:** montar un sistema integral de unit testing, cobertura global ni pruebas automáticas de todos los módulos de PROING.
+- **Regla de seguridad de datos:** nunca crear periodos ni asignaciones de prueba en producción, ni ejecutar triggers de notificaciones para validar la interfaz. Comprobar con SQL de solo lectura o fixture aislado la integridad del histórico.
+
+La lista de 22 casos de la sección 11 es el **plan de aceptación**, no la promesa de que existen 22 tests automatizados. Marcar en la ejecución cada caso como probado manualmente, automatizado, pendiente o no aplicable, con evidencia.
+
+**Orden sugerido:** resolver primero contratos y selección por periodo; implementar backend de borrador/vigencia y UI; realizar verificación manual e integración segura de cada incremento. Agregar automatizaciones puntuales solo si aportan valor inmediato y no desvían el alcance P1.
 
 Esta propuesta no requiere modificar evaluaciones históricas ni desactivar el periodo anterior. Requiere decisiones funcionales de la sección 13 antes de autorizar cambios de código o esquema.
