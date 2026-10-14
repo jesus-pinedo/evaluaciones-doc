@@ -1,20 +1,54 @@
-# Instrucciones para Codex — Documentación de Evaluaciones HF-011
+# Instrucciones para agentes — Evaluaciones HF-011
 
-## Propósito
+## Propósito y fuente de verdad
 
-Este repositorio documenta el dominio funcional, las decisiones y las mejoras del módulo de Evaluación de Desempeño de PROING. No es un repositorio de código ejecutable.
+HF-011 administra la evaluación anual de desempeño: Gestión Humana configura y publica periodos; los jefes evalúan a sus colaboradores; el sistema conserva respuestas y resultados, notifica y ofrece seguimiento.
 
-## Reglas de trabajo
+`evaluaciones-docs/` es la fuente central de documentación. El requerimiento documenta lo deseado; para afirmar cómo funciona la versión actual, el código es la evidencia principal. No presentar una tarea planeada o una pantalla aislada como funcionalidad operativa.
 
-1. Consultar primero `docs/funcional/contexto-funcional.md` para interpretar necesidades del módulo.
-2. Separar siempre **requerimiento original**, **diseño propuesto**, **comportamiento verificado en código** y **decisión pendiente**.
-3. No dar por implementado ningún ítem basándose únicamente en `tareas.md` o `estimaciones.md`.
-4. Antes de modificar reglas de negocio (estados, fechas, notificaciones, cómputo, permisos), identificar los consumidores e impactos en API, frontend y legado PHP.
-5. Para describir comportamiento existente, aportar ruta de archivo, función o consulta del repositorio inspeccionado; si no se inspeccionó, etiquetar `[POR VALIDAR]`.
-6. Para cada mejora documentar: problema, comportamiento actual comprobado, comportamiento deseado, reglas, criterios de aceptación, cambios por repositorio, pruebas y decisiones pendientes.
-7. Mantener documentación en español. Usar términos funcionales de Gestión Humana y nombres técnicos exactos cuando sean verificables.
-8. No agregar datos personales de colaboradores, credenciales, tokens, correos reales ni información de evaluaciones individuales.
+## Repositorios
 
-## Ubicación sugerida de futuras mejoras
+- `api/`: Express, Prisma/PostgreSQL, BullMQ/Redis, correo, PDF y scheduler.
+- `sisproing-app/`: React, rutas, formularios, reportes y SSO del módulo.
+- `evaluaciones-docs/`: documentación funcional, técnica, decisiones y mejoras.
+- `sisproing/` (PHP legado): integración externa, fuera del alcance de la auditoría actual.
 
-`docs/mejoras/MEJ-001-descripcion-corta.md`, `MEJ-002-...`, etc.
+## Alcance permitido
+
+Inspeccionar solo evaluaciones de desempeño, periodos, catálogos, preguntas/respuestas, asignaciones, cálculo, estados, confirmaciones, reportes, notificaciones/cron de evaluaciones y autenticación/autorización usada por el módulo. Un servicio compartido se inspecciona solo en las funciones llamadas por evaluaciones.
+
+No auditar inventario, ventas, compras, facturación, transportes, operaciones ni otros dominios. No inspeccionar `.env`, secretos, credenciales ni datos personales reales. No inspeccionar PHP sin una nueva autorización expresa.
+
+## Ruta de lectura
+
+1. Leer [contexto funcional](docs/funcional/contexto-funcional.md) y [reglas de negocio](docs/funcional/reglas-negocio.md).
+2. Consultar [estado de implementación](docs/auditoria/estado-implementacion.md) y [pendientes](docs/auditoria/pendientes-validacion.md).
+3. Para contratos, usar [endpoints](docs/tecnico/endpoints.md), [modelo de datos](docs/tecnico/modelo-datos.md) y [seguridad/SSO](docs/tecnico/seguridad-sso.md).
+
+## Reglas principales confirmadas
+
+- Publicar un periodo copia catálogos activos y crea las evaluaciones desde `EmployeeManager` para jefe y colaborador activos (`status = 1`).
+- Una evaluación es única por periodo, evaluador y evaluado.
+- Estados de evaluación: `PENDING`, `IN_PROGRESS`, `COMPLETED`.
+- El puntaje es `(suma de respuestas / (número de preguntas del periodo × 5)) × 100`, con un decimal. No hay ponderación por grupo.
+- Finalizar exige respuesta para todas las preguntas, pero el backend no exige fortalezas, debilidades ni compromisos.
+- Los compromisos actuales son texto libre dentro de cada debilidad seleccionada; no existe catálogo de compromisos.
+- `isActive` del periodo representa publicación, mientras `DRAFT`, `SCHEDULED`, `ACTIVE` y `FINISHED` se derivan en tiempo de consulta.
+- El middleware JWT está desactivado en `api/src/app.js`; las restricciones visuales del frontend no equivalen a autorización del backend.
+
+## Cómo documentar cambios
+
+Separar siempre:
+
+- requerimiento original;
+- diseño propuesto;
+- comportamiento verificado en código;
+- decisión o validación pendiente.
+
+Para cada afirmación técnica indicar repositorio, ruta y función/modelo. Usar los estados **Requerido**, **Implementado**, **Parcial**, **No encontrado** y **Pendiente de verificar**. No incluir datos personales ni grandes bloques de código.
+
+Las mejoras futuras van en `docs/mejoras/MEJ-NNN-descripcion.md` e incluyen: problema, evidencia actual, comportamiento deseado, reglas, criterios de aceptación, cambios por repositorio, pruebas, riesgos y decisiones pendientes. Las decisiones transversales van en `docs/decisiones/`.
+
+## Restricciones de modificación
+
+En una auditoría documental, modificar solo `evaluaciones-docs/`. No cambiar API, frontend, esquema, migraciones, configuración, colas o tareas programadas; no enviar correos ni generar commits automáticamente.
