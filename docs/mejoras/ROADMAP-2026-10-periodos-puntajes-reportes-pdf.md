@@ -1,4 +1,4 @@
-# Hoja de ruta — Histórico, puntajes, reportes y PDF individual
+# Hoja de ruta — Periodos, puntajes, reportes, PDF y reasignación
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha:** 2026-10-14  
@@ -7,9 +7,9 @@
 
 ## 1. Objetivo y decisiones de alcance
 
-Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual.
+Evolucionar el módulo existente para (1) gestionar correctamente los periodos históricos y crear uno nuevo, (2) revisar y corregir los cálculos de puntuación, (3) consultar reportes de un periodo seleccionado y (4) descargar el PDF de una evaluación individual y (5) permitir, en fase posterior, la reasignación manual y auditada de evaluadores durante el periodo.
 
-- **Orden de prioridad acordado:** P1 → P2 → P3 → P4.
+- **Orden de prioridad acordado:** P1 → P2 → P3 → P4 → P5. La reasignación manual de evaluador (P5) es **prioridad baja** y no se adelanta a P1.
 - **Estrategia:** documentar y resolver cada mejora antes de comenzar la siguiente; no implementar las cuatro en una sola intervención.
 - **Fuera de alcance por ahora:** parches generales de seguridad y permisos, refactor global, módulos no relacionados, nuevos reportes compilados, rediseño visual completo y cambios en código PHP legado.
 - **Actualización posterior a la auditoría:** el responsable del proyecto indica que **ya descomentó el middleware de autenticación**. Por tanto, el diagnóstico previo de `app.use(authenticate)` comentado es una foto histórica, **no una confirmación del estado actual**. No se programa una intervención general de seguridad en esta hoja de ruta. Cada cambio sí debe respetar los controles que ya existan y no ampliar inadvertidamente el acceso a datos.
@@ -23,6 +23,7 @@ Evolucionar el módulo existente para (1) gestionar correctamente los periodos h
 | **P2** | MEJ-002 | Revisión y corrección de puntajes | Regla de cálculo aprobada e idéntica en React y Node; pruebas numéricas. |
 | **P3** | MEJ-003 | Dashboard y consultas por periodo | Selector de periodo y estadísticas estrictamente asociadas al elegido. |
 | **P4** | MEJ-004 | PDF individual | Descarga de evaluaciones completadas desde el detalle de Gestión Humana y consulta del evaluador, reutilizando el PDF existente. |
+| **P5** | MEJ-005 | Reasignación administrativa de evaluador | Transferencia manual, individual y auditable de la asignación de una evaluación durante el periodo, sin modificar HF-002 automáticamente. |
 
 ### Dependencia transversal
 
@@ -163,9 +164,21 @@ Existe `GET /api/employee-evaluations/evaluations/:id/pdf`, la generación con P
 - Nombre de archivo y datos que se incluyen en el documento.
 - Si la constancia de recibido se incorpora en el PDF y qué ocurre cuando el acuse llega después de generarlo.
 
-## 7. Forma de ejecutar cada mejora
+## 7. P5 / MEJ-005 — Reasignación manual de evaluador (prioridad baja)
 
-Para **cada** MEJ-001…MEJ-004:
+Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. La futura mejora permitiría a un administrador autorizado reasignar **una evaluación concreta** sin regenerar todas las asignaciones, preservando `periodId`, `evaluationId`, el histórico y un registro auditable del cambio. No se plantea evaluar siempre con el jefe actual ni modificar la fuente de jefes HF-002.
+
+- **Propuesta inicial:** permitir `PENDING` con motivo obligatorio e historial de evaluador anterior/nuevo, administrador y fecha.
+- **`IN_PROGRESS`:** pendiente de definir, ya que puede contener borradores de otro evaluador.
+- **`COMPLETED`:** no reasignable por la operación ordinaria.
+- **Dependencias:** consultas por evaluador, recordatorios, reportes y controles de acceso de la nueva acción; no constituye una reforma general de seguridad.
+- **Fase:** backlog, sin análisis técnico nuevo ni implementación en P1.
+
+Ver [MEJ-005 — Reasignación manual de evaluador](MEJ-005-reasignacion-manual-evaluador.md).
+
+## 8. Forma de ejecutar cada mejora
+
+Para **cada** MEJ-001…MEJ-005:
 
 1. Revisar el comportamiento actual y el código **solo de los archivos afectados**.
 2. Cerrar decisiones funcionales pendientes con el responsable del proyecto.
@@ -174,9 +187,9 @@ Para **cada** MEJ-001…MEJ-004:
 5. Validar con datos de prueba; especialmente conservar resultados históricos.
 6. Actualizar su documento y registrar qué quedó verificado.
 
-**Estado inicial:** P1 pendiente de comenzar; P2, P3 y P4 en cola. Ninguna modificación de código queda autorizada por este documento.
+**Estado actualizado:** P1 tiene microauditoría documentada y decisiones de borrador único/inmutabilidad aprobadas; pendiente implementación. P2, P3, P4 y P5 en cola, con P5 como último bloque. Ninguna modificación de código queda autorizada por este documento.
 
-## 8. Fuentes de referencia
+## 9. Fuentes de referencia
 
 - [Contexto funcional](../funcional/contexto-funcional.md)
 - [Reglas de negocio](../funcional/reglas-negocio.md)
