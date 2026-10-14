@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** microauditoría terminada; **P1.1 implementado en React según Codex, pendiente de validación manual**; P1.2–P1.4 pendientes  
+**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2: aprobada opción de descartar borrador no publicado**; P1.2–P1.4 pendientes de implementación  
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -493,3 +493,38 @@ La aprobación de P1.1 requiere ejecutar y registrar el checklist manual en un a
 - No introducir un framework general de testing: checklist manual e integración segura son mínimos; pruebas automatizadas puntuales son opcionales.
 
 **No se autoriza aquí ejecutar migraciones, publicar periodos reales ni tocar otros módulos.**
+
+
+## 18. Decisión aprobada — Descartar borrador y crear otro (2026-10-14)
+
+**Situación observada:** en capturas del entorno de pruebas, la pantalla «Periodos» lista un borrador «Evaluacion 2027» (fechas 15/10/2026 a 31/10/2026) y el histórico «Evaluación de Desempeño - Año 2025» como `FINISHED`. Al pulsar «Nuevo periodo», React presenta correctamente «Ya existe un periodo en borrador» y ofrece «Continuar borrador». El responsable confirma que «Evaluacion 2027» **es un borrador de prueba** y **aprueba añadir «Descartar borrador»** para poder iniciar uno nuevo.
+
+**Estado de P1.1:** confirmación visual parcial de listado «Todos», etiqueta «Borrador», etiqueta «Finalizado», botón «Nuevo periodo» y diálogo «Continuar borrador». No se han completado todos los casos manuales ni se ha hecho una publicación de prueba.
+
+### Reglas aprobadas y diseño mínimo de P1.2
+
+1. **Un solo borrador global a la vez:** se mantiene la decisión de P1.
+2. Cuando existe borrador, «Nuevo periodo» mostrará como mínimo **Cancelar**, **Continuar borrador** y **Descartar borrador**; se puede mostrar la acción de descartar también en la tarjeta `DRAFT` si la interfaz queda consistente.
+3. **Descartar requiere confirmación explícita**, mostrando nombre del borrador e informando que no puede recuperarse. No descartar por entrar al formulario ni por cancelar un diálogo.
+4. El **backend** realizará la validación definitiva antes de eliminar: el registro existe, sigue siendo borrador (nunca publicado), **no tiene snapshots, evaluaciones, respuestas ni resultados históricos asociados** y no existe ninguna operación concurrente que lo haya publicado o transformado. En caso de duda o datos relacionados, **rechazar sin borrar**.
+5. No reutilizar `PUT {isActive:false}` como descarte; implementar una operación explícita y delimitada del recurso borrador. Si se usa `DELETE`, el endpoint debe verificar el estado y las relaciones antes de actuar, de forma transaccional/atómica donde corresponda.
+6. Si el descarte se completa, limpiar el estado local y permitir abrir un **formulario nuevo vacío**. La creación real será un `POST` y deberá generar **otro `periodId`**.
+7. Si otro usuario guardó, descartó o publicó ese borrador desde que se abrió el diálogo, responder con conflicto o no encontrado y **recargar el listado**, sin afectar el periodo nuevo/publicado.
+8. Descartar está restringido a **borradores sin historial**. **Nunca** se permite descartar el periodo histórico 2025, un `SCHEDULED`, `ACTIVE` o `FINISHED` ni un `isActive=false` heredado que tenga snapshots/evaluaciones.
+9. No eliminar ni cambiar datos reales por esta aprobación: el responsable aprobará/ejecutará **cada acción de descarte en la aplicación**, incluso en el entorno de pruebas. Codex no debe borrar «Evaluacion 2027» ni ningún otro registro automáticamente.
+10. Los cambios quedan acotados al módulo de periodos de `api` y `sisproing-app`; no hay migraciones ni notificaciones autorizadas por esta decisión.
+
+### Validaciones propuestas para P1.2 (sin suite de testing preexistente)
+
+- **Borrador normal sin dependencias:** confirmar descarte, desaparece del listado, siguiente «Nuevo periodo» muestra formulario vacío y crea ID nuevo si se guarda.
+- **Cancelar el diálogo:** no borra ni modifica ningún registro.
+- **Histórico publicado:** no ofrece «Descartar» y un intento directo al endpoint se rechaza.
+- **Borrador anómalo con snapshots o evaluaciones:** rechazo seguro; no depender de cascadas ni borrar relaciones.
+- **Competencia entre dos administradores:** si el primero publica/descarta, el segundo recibe conflicto/no encontrado; sin borrados sobre un publicado.
+- **Error de servidor/red:** mostrar el error, conservar o refrescar datos con seguridad; no afirmar éxito sin confirmación.
+- **Borradores múltiples heredados:** antes de introducir una restricción de unicidad o migración, inventariarlos en lectura; no borrarlos automáticamente.
+- **Regresión histórica:** comparar por `periodId` el histórico antes y después de la prueba en ambiente aislado.
+
+**Pendiente complementario de P1.2:** la garantía de borrador único **debe implementarse en backend** y manejar concurrencia. El botón de React por sí solo no la garantiza. Evaluar solución sin migración cuando sea segura; si exige un índice/constraint nuevo, **presentar el plan y solicitar aprobación antes de ejecutar cualquier migración**.
+
+**Próximo paso:** pedir a Codex implementación acotada a P1.2 tras leer esta decisión. No ampliar aún a P1.3 (resolver periodo vigente) ni P1.4 (vista previa histórica).
