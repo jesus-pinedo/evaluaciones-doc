@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado localmente y validado técnicamente, pendiente de validación manual**; P1.3–P1.4 pendientes de implementación
+**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado y flujo funcional principal validado (6/6 comprobaciones manuales del responsable)**, con casos técnicos/concurrencia pendientes; P1.3–P1.4 pendientes de implementación
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -636,7 +636,7 @@ Ejecutar solo en ambiente aislado, con datos sintéticos y sin publicar ni envia
 
 | Caso | Acción | Resultado esperado | Estado |
 |---|---|---|---|
-| Borrador normal | Nuevo periodo → Descartar → confirmar | 200; desaparece el borrador; abre formulario vacío; el histórico conserva sus mismos IDs y datos. | Pendiente |
+| Borrador normal | Nuevo periodo → Descartar → confirmar | Desaparece el borrador; abre formulario vacío; el histórico conserva sus datos (HTTP 200 no verificado explícitamente). | **Validado manualmente (responsable, 2026-10-14)** |
 | Cancelación inicial | Abrir diálogo y pulsar Cancelar | No se llama DELETE y no cambia el listado. | Pendiente |
 | Cancelación final | Pulsar Descartar y luego Volver | No se llama DELETE y el borrador permanece. | Pendiente |
 | Continuación | Pulsar Continuar borrador | Abre el mismo ID con sus datos; no crea otro registro. | Pendiente |
@@ -653,3 +653,21 @@ Ejecutar solo en ambiente aislado, con datos sintéticos y sin publicar ni envia
 | Error de red/servidor | Interrumpir DELETE | La UI muestra error, no afirma éxito y conserva/recarga el estado seguro. | Pendiente |
 
 P1.2 no resuelve periodo vigente, reportes por periodo ni vista previa histórica; esos trabajos continúan reservados para P1.3/P1.4 y mejoras posteriores.
+
+
+## 20. Resultado de la prueba funcional P1.2 — 2026-10-14
+
+El responsable del proyecto reportó **seis comprobaciones manuales exitosas (6/6)** en la interfaz. Se documentan como observaciones de usuario, no como ejecución independiente de pruebas automatizadas o inspección SQL.
+
+| Nº | Comprobación reportada | Resultado |
+|---|---|---|
+| 1 | «Evaluacion 2027» estaba en borrador y sin evaluaciones ni snapshots asociados. | Aprobada por el responsable |
+| 2 | «Descartar borrador» solicitó confirmación. | Aprobada |
+| 3 | Al confirmar, desapareció únicamente «Evaluacion 2027». | Aprobada |
+| 4 | «Nuevo periodo» abrió el formulario vacío. | Aprobada |
+| 5 | Se guardó un nuevo borrador con ID diferente. | Aprobada |
+| 6 | El histórico de 2025 permaneció intacto. | Aprobada |
+
+**Estado de cierre:** **flujo funcional principal de P1.2 validado**. Quedan **sin validar**: pruebas explícitas de concurrencia, token `updatedAt` obsoleto, conflictos 404/409, rechazo de `DELETE` a publicados, borradores anómalos con relaciones históricas, operaciones paralelas y error de red. La validación funcional no equivale a cobertura integral de las protecciones backend.
+
+**Siguiente etapa:** P1.3 — selección correcta del periodo vigente por fechas en Bogotá para «Mis Evaluaciones» y recordatorios; no confundir `isActive=true` (publicado) con vigencia. Reportes por `periodId` y su selector visual quedan principalmente para P3. No ejecutar envíos ni publicaciones reales durante la implementación y las pruebas.
