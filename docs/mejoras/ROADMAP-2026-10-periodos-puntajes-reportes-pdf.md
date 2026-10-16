@@ -108,6 +108,9 @@ Las preguntas sin respuesta cuentan en el máximo del periodo; no hay peso por g
 
 **¿La corrección aplica únicamente a evaluaciones nuevas o también se recalcularán las antiguas?** No se debe cambiar el histórico por defecto.
 
+
+**Evidencia a revisar en P2 (2026-10-16):** la vista histórica 2025 muestra porcentajes integrados en los nombres de grupos, por ejemplo Calidad (10%), Actitud (15%), Innovación y Comunicaciones (5%) y Planeación (15%). Determinar si son texto descriptivo o ponderaciones requeridas; no cambiar cálculo ni datos históricos sin aprobar fórmula y alcance de corrección.
+
 ## 5. P3 / MEJ-003 — Reporte de seguimiento por periodo
 
 ### Problema y evidencia
@@ -187,7 +190,7 @@ Para **cada** MEJ-001…MEJ-005:
 5. Validar con datos de prueba; especialmente conservar resultados históricos.
 6. Actualizar su documento y registrar qué quedó verificado.
 
-**Estado actualizado (2026-10-14):** P1.1 fue implementado en React y comprobado visualmente en sus principales flujos. **P1.2 quedó implementado en API y React según Codex y el responsable validó manualmente 6/6 pasos del flujo principal:** borrador sin datos relacionados, doble confirmación, descarte exitoso, formulario nuevo vacío, nuevo ID y preservación del histórico 2025. Permanecen pendientes los escenarios técnicos excepcionales (concurrencia, versiones obsoletas, errores 404/409 y rechazos de históricos). **P1.3 — selección de periodo vigente por fechas inclusivas de Bogotá** ya fue implementado técnicamente y su escenario visual sin periodo vigente se comprobó (captura 2026-10-16). Quedan otras pruebas manuales pendientes. Reglas aplicadas: «Mis Evaluaciones» y recordatorios deben usar exclusivamente el periodo publicado vigente, sin seleccionar el futuro o el vencido; P3 conserva el selector histórico del dashboard. **P1.4 — snapshots históricos** es la siguiente etapa y su alcance está definido en [MEJ-001-P1-4-snapshots-historicos.md](MEJ-001-P1-4-snapshots-historicos.md). Las demás prioridades continúan pendientes. No se han autorizado publicaciones de prueba en producción.
+**Estado actualizado (2026-10-14):** P1.1 fue implementado en React y comprobado visualmente en sus principales flujos. **P1.2 quedó implementado en API y React según Codex y el responsable validó manualmente 6/6 pasos del flujo principal:** borrador sin datos relacionados, doble confirmación, descarte exitoso, formulario nuevo vacío, nuevo ID y preservación del histórico 2025. Permanecen pendientes los escenarios técnicos excepcionales (concurrencia, versiones obsoletas, errores 404/409 y rechazos de históricos). **P1.3 — selección de periodo vigente por fechas inclusivas de Bogotá** ya fue implementado técnicamente y su escenario visual sin periodo vigente se comprobó (captura 2026-10-16). Quedan otras pruebas manuales pendientes. Reglas aplicadas: «Mis Evaluaciones» y recordatorios deben usar exclusivamente el periodo publicado vigente, sin seleccionar el futuro o el vencido; P3 conserva el selector histórico del dashboard. **P1.4 — snapshots históricos** se implementó según Codex y su vista previa del periodo 2025 fue validada visualmente (banner de configuración histórica y grupos/preguntas visibles). La correspondencia exacta contra snapshots almacenados y los escenarios de alternancia/error permanecen pendientes. Ver [MEJ-001-P1-4-snapshots-historicos.md](MEJ-001-P1-4-snapshots-historicos.md). Las demás prioridades continúan pendientes. No se han autorizado publicaciones de prueba en producción.
 
 Ver [avance y checklist de P1.1](MEJ-001-historico-creacion-periodos.md#17-avance-de-implementación--p11-reporte-de-codex-2026-10-14).
 
