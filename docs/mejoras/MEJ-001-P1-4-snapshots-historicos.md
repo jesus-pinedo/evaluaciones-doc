@@ -2,7 +2,7 @@
 
 **Fecha de implementación:** 2026-10-16
 
-**Estado:** implementado localmente y validado técnicamente; checklist manual pendiente
+**Estado:** implementado y validado técnicamente; vista previa histórica 2025 comprobada visualmente; validación comparativa de snapshots y otros casos pendiente
 
 **Alcance:** vista previa de periodos en HF-011
 
@@ -134,7 +134,7 @@ Ejecutar en ambiente aislado y sin publicar, regenerar snapshots ni modificar ca
 
 | Caso | Acción | Resultado esperado | Estado |
 |---|---|---|---|
-| Histórico A | Abrir un publicado con preguntas conocidas A. | Banner de configuración histórica; solo grupos/preguntas snapshot A. | Pendiente |
+| Histórico A | Abrir un publicado con preguntas conocidas A. | Banner de configuración histórica; grupos y preguntas visibles, atribuidos a snapshots del periodo. | **Parcialmente validado visualmente (2025, 2026-10-16)**; correspondencia exacta con BD pendiente |
 | Histórico B diferente | Cerrar A y abrir un publicado con preguntas B. | Solo snapshots B; ninguna pregunta de A. | Pendiente |
 | Cambio repetido A→B→A | Alternar rápidamente las vistas. | Cada apertura consulta su ID; ninguna respuesta anterior sobrescribe la actual. | Pendiente |
 | Catálogo global modificado | Comparar un histórico con catálogos actuales distintos. | El histórico no cambia ni incorpora preguntas globales nuevas. | Pendiente |
@@ -156,3 +156,16 @@ Ejecutar en ambiente aislado y sin publicar, regenerar snapshots ni modificar ca
 ## 9. Fuera de alcance confirmado
 
 No se modificaron publicación, snapshots existentes, evaluaciones, respuestas, puntajes, PDF, selector de reportes P3, cron, colas ni otros módulos de PROING.
+
+
+## 10. Evidencia visual del periodo histórico 2025 — 2026-10-16
+
+El responsable compartió una captura de «Vista Previa: Evaluación de Desempeño - Año 2025» en la aplicación. Se observa el banner verde **«Configuración histórica guardada al publicar este período»**, el listado de grupos y preguntas del HF-011 y una vista de consulta sin controles de edición.
+
+En la captura aparecen nombres de grupos que incluyen porcentajes, como **CALIDAD (10%)**, **CULTURA ORGANIZACIONAL - ACTITUD (15%)**, **INNOVACIÓN Y COMUNICACIONES (5%)** y **PLANEACIÓN (15%)**. Estos valores forman parte del texto que presenta el grupo; **no demuestran que el cálculo aplique ponderaciones**. P2 debe examinar si son etiquetas meramente descriptivas o pesos de negocio aprobados, comparando frontend, backend y resultados históricos.
+
+La columna **PUNTAJE** muestra ceros en la vista previa sin respuestas seleccionadas. Eso no demuestra que el puntaje almacenado de evaluaciones individuales sea cero; corresponde a la vista previa del formulario.
+
+**Validado visualmente:** se abre el periodo histórico 2025, se muestra el banner de snapshot y se renderizan grupos/preguntas. **No validado todavía:** correspondencia exacta con `PeriodGroup` / `PeriodQuestion` en la base, alternar dos periodos con preguntas distintas, un histórico sin snapshots, y prueba de solo lectura por comparación de datos. El cierre del flujo principal P1 es provisional hasta completar las comprobaciones que el responsable decida ejecutar.
+
+**Evidencia:** captura aportada en la conversación; no se incorporan datos laborales de evaluados al repositorio.
