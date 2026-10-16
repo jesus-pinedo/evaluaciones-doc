@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado y flujo funcional principal validado (6/6 comprobaciones manuales del responsable)**, con casos técnicos/concurrencia pendientes; P1.3–P1.4 pendientes de implementación
+**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado y flujo funcional principal validado (6/6 comprobaciones manuales del responsable)**, con casos técnicos/concurrencia pendientes; **P1.3 implementado localmente y validado técnicamente, pendiente de checklist manual**; P1.4 pendiente de implementación
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -712,3 +712,109 @@ El responsable del proyecto reportó **seis comprobaciones manuales exitosas (6/
 - Ninguna prueba debe publicar periodos reales ni disparar correos o jobs productivos. Para comprobar recordatorios, usar dobles/stubs o inspección controlada sin encolar.
 
 **Estado:** reglas acordadas; **pendiente implementación y verificación con Codex**. P1.1–P1.2 permanecen documentados con sus pruebas y límites de cobertura.
+
+
+## 22. Avance de implementación — P1.3 (2026-10-14)
+
+**Estado:** implementación local terminada y validación técnica correcta. El checklist manual con datos sintéticos permanece pendiente. No se consultaron ni modificaron datos reales, no se ejecutaron cron jobs y no se encolaron correos.
+
+### Comportamiento anterior y nuevo
+
+| Flujo | Antes | P1.3 |
+|---|---|---|
+| Resumen de «Mis Evaluaciones» | `findFirst({isActive:true})`, ordenado por fecha de inicio; podía tomar un publicado futuro o vencido. | Consulta el único publicado cuya ventana contiene `hoyBogota`. Si no existe devuelve `period:null` y estadísticas en cero. |
+| Listado de «Mis Evaluaciones» | Resolvía el periodo por separado con el mismo concepto incorrecto de «activo» y podía no coincidir con el resumen. | Usa el mismo resolvedor central; sin vigente devuelve listado/paginación vacíos. |
+| Interfaz sin campaña | Mostraba «No hay periodo activo», pero seguía solicitando y renderizando el bloque del equipo. | Muestra un estado informativo de «sin periodo vigente» y no solicita ni presenta el listado operativo. Una ambigüedad muestra un estado de error diferente y explícito. |
+| Recordatorio diario | Tomaba el primer `isActive=true` sin fechas ni orden determinista. | Solo arma recordatorios para el único periodo vigente en Bogotá; sin vigente devuelve `[]`. |
+| Candidatos solapados | Un `findFirst` elegía uno silenciosamente. | Devuelve 409 `EVAL_PERIOD_CURRENT_AMBIGUOUS`, registra los IDs candidatos y no llega a encolar jobs. |
+
+No se cambia `isActive`: continúa significando **publicado**. Tampoco se modifican publicación, snapshots, asignaciones, evaluaciones históricas ni puntuaciones.
+
+### Función y consulta centralizadas
+
+`periods/currentPeriod.service.js#findCurrentPublishedPeriod` ejecuta una única regla:
+
+```text
+isActive = true
+AND startDate <= fechaCalendarioBogota
+AND endDate >= fechaCalendarioBogota
+```
+
+La fecha se construye en `America/Bogota` como `YYYY-MM-DD` y se transforma a medianoche UTC únicamente como representación de la columna Prisma/PostgreSQL `@db.Date`. Las comparaciones son inclusivas; no dependen de la hora UTC del servidor y el periodo continúa vigente durante todo su último día en Bogotá.
+
+La consulta trae como máximo dos candidatos. Cero significa ausencia de campaña; uno es el resultado; dos bastan para declarar ambigüedad sin seleccionar por orden. `currentPeriod.utils.js` contiene la lógica pura de calendario, filtro y clasificación para permitir pruebas aisladas sin base de datos.
+
+### Inventario de consumidores de selección implícita
+
+| Consumidor | Tipo | Situación en P1.3 |
+|---|---|---|
+| `periods.service.js#getMyTeamOverview` | Operación actual / resumen de «Mis Evaluaciones» | **Corregido:** usa `findCurrentPublishedPeriod`. |
+| `evaluations.controller.js#getMyTeamEvaluations` | Operación actual / listado de «Mis Evaluaciones» | **Corregido:** usa el mismo resolvedor y devuelve colección vacía si no hay vigente. |
+| `reports.service.js#getUsersForDailyReminder` | Operación actual / productor consultado por el scheduler | **Corregido:** solo consulta pendientes del `periodId` vigente. Una ausencia produce cero recordatorios y una ambigüedad aborta antes de la cola. |
+| `reports.service.js#getDashboardProgress` | Dashboard general de reportes | **Pendiente P3:** todavía usa selección implícita `findFirst({isActive:true})`. Debe recibir/seleccionar `periodId` en el rediseño del dashboard; no se amplió P1.3. |
+| `reports.service.js#getEvaluationsList` | Drill-down del dashboard general | **Pendiente P3:** todavía elige un publicado implícitamente. Debe compartir el `periodId` explícito del dashboard en P3. |
+
+Las demás consultas de `EvaluationPeriod` encontradas corresponden a CRUD, borrador, publicación, solapamiento o lectura por ID; no son selección implícita de una campaña operativa.
+
+### Archivos modificados en P1.3
+
+API:
+
+1. `api/src/modules/employee-evaluations/periods/currentPeriod.utils.js` — calendario Bogotá, filtro inclusivo y resolución pura de candidatos.
+2. `api/src/modules/employee-evaluations/periods/currentPeriod.service.js` — consulta Prisma central y conflicto por ambigüedad.
+3. `api/src/modules/employee-evaluations/periods/periods.service.js` — overview con periodo vigente o estado vacío.
+4. `api/src/modules/employee-evaluations/evaluations/evaluations.controller.js` — listado con el mismo resolvedor y respuesta vacía sin vigente.
+5. `api/src/modules/employee-evaluations/reports/reports.service.js` — recordatorios limitados al vigente.
+6. `api/tests/employee-evaluations/current-period.service.test.js` — seis pruebas pequeñas con `node:test`; no introduce otro framework.
+
+React:
+
+1. `sisproing-app/src/modules/employee-evaluations/evaluations/pages/EvaluationsPage.tsx` — espera la resolución del periodo, evita solicitar el listado si no existe y presenta el estado informativo.
+2. `sisproing-app/src/modules/employee-evaluations/evaluations/components/ActivePeriodCard.tsx` — cambia la etiqueta visual a «Periodo vigente».
+
+Documentación:
+
+1. `evaluaciones-docs/docs/mejoras/MEJ-001-historico-creacion-periodos.md`.
+
+### Pruebas técnicas realizadas
+
+| Validación | Resultado |
+|---|---|
+| Seis pruebas `node:test` de calendario Bogotá y resolución | Correcto: inicio inclusivo, fin inclusivo, futuro, finalizado, borrador, publicados no solapados, ambigüedad y frontera de medianoche Bogotá. |
+| `node --check` dirigido a los archivos JavaScript modificados | Correcto. |
+| API `npm run type-check` | Correcto. |
+| API `npm run build` | Correcto. |
+| React `npm run typecheck` | Correcto. |
+| ESLint dirigido a los dos componentes React modificados | Correcto. |
+| React `npm run build` | Correcto; solo advertencias informativas por datos desactualizados de Browserslist/baseline. |
+| `git diff --check` en API, React y documentación | Correcto. |
+
+No se ejecutaron endpoints contra la base, publicaciones, migraciones, correos, colas ni el scheduler real.
+
+### Checklist manual de P1.3 — pendiente
+
+Ejecutar únicamente en un ambiente aislado con datos sintéticos y el productor de cola sustituido por un stub:
+
+| Caso | Preparación/acción | Resultado esperado | Estado |
+|---|---|---|---|
+| Publicado futuro | Único publicado con inicio posterior a hoy Bogotá | «Mis Evaluaciones» informa que no hay vigente; listado vacío; cero jobs. | Pendiente |
+| Publicado vigente | Ventana que contiene hoy Bogotá | Resumen, listado y recordatorios usan exactamente el mismo `periodId`. | Pendiente |
+| Publicado finalizado | Fin anterior a hoy Bogotá | No se selecciona; no se generan recordatorios. | Pendiente |
+| Fecha de inicio | Simular hoy Bogotá igual a `startDate` | Se selecciona el periodo. | Pendiente |
+| Fecha de finalización | Simular todo el último día en Bogotá | Se selecciona hasta las 23:59:59.999 de Bogotá; días restantes 0. | Pendiente |
+| Día posterior | Simular medianoche Bogotá del día siguiente | Deja de seleccionarse. | Pendiente |
+| Ausencia total | Sin publicados dentro de la ventana | Estado informativo, estadísticas/listado vacíos y cero jobs. | Pendiente |
+| Publicados no solapados | Histórico, vigente y futuro publicados | Solo se usa el vigente. | Pendiente |
+| Anomalía solapada | Dos publicados incluyen hoy | 409 `EVAL_PERIOD_CURRENT_AMBIGUOUS`; no se muestran datos arbitrarios ni se llama `addDailyReminderJobs`. | Pendiente |
+| Recordatorios sin vigente | Invocar productor con stub de cola | Retorna `[]`; cola recibe cero jobs. | Pendiente |
+| Preservación histórica | Comparar conteos/IDs antes y después de consultas | Ningún periodo, snapshot, evaluación, respuesta o resultado cambia. | Pendiente |
+
+### Riesgos y pendientes
+
+1. El dashboard general y su drill-down siguen expuestos a selección arbitraria mientras no implementen `periodId` explícito en P3. No afectan el flujo corregido de «Mis Evaluaciones» ni el scheduler.
+2. Resumen y listado son dos solicitudes HTTP; usan la misma regla determinista, pero un cambio de día exactamente entre ambas puede producir legítimamente un estado distinto. La interfaz solo solicita el listado después de resolver el resumen y el backend vuelve a validar vigencia.
+3. La protección por múltiples candidatos depende de que todos los consumidores operativos usen el servicio central. El inventario actual no encontró otros consumidores operativos dentro del módulo.
+4. Las pruebas aisladas no sustituyen una validación integrada de Prisma/PostgreSQL `@db.Date`, reloj del host, scheduler, Redis y cola. Esa prueba debe usar ambiente aislado y dobles para notificaciones.
+5. No se requiere migración para P1.3. No se añadió constraint de solapamiento ni se corrigieron datos existentes.
+
+P1.3 no implementa selector histórico, filtros del dashboard, P1.4 ni cambios de publicación. P1.1 y P1.2 conservan íntegramente sus reglas aprobadas.
