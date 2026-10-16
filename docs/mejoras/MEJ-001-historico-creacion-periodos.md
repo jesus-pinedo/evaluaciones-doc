@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Fecha de microauditoría:** 2026-10-14  
-**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado y flujo funcional principal validado (6/6 comprobaciones manuales del responsable)**, con casos técnicos/concurrencia pendientes; **P1.3 implementado localmente y validado técnicamente, pendiente de checklist manual**; P1.4 pendiente de implementación
+**Estado:** microauditoría terminada; **P1.1 implementado y parcialmente validado visualmente**; **P1.2 implementado y flujo funcional principal validado (6/6 comprobaciones manuales del responsable)**, con casos técnicos/concurrencia pendientes; **P1.3 implementado localmente y validado técnicamente, pendiente de checklist manual**; **P1.4 implementado localmente y validado técnicamente, pendiente de checklist manual**
 **Prioridad:** P1  
 **Alcance:** creación, borrador, publicación, estados, histórico y selección de periodos.  
 
@@ -818,3 +818,14 @@ Ejecutar únicamente en un ambiente aislado con datos sintéticos y el productor
 5. No se requiere migración para P1.3. No se añadió constraint de solapamiento ni se corrigieron datos existentes.
 
 P1.3 no implementa selector histórico, filtros del dashboard, P1.4 ni cambios de publicación. P1.1 y P1.2 conservan íntegramente sus reglas aprobadas.
+
+
+## 23. Avance de implementación — P1.4 (2026-10-16)
+
+P1.4 corrige la vista previa de periodos para que un publicado consulte únicamente `PeriodGroup` y `PeriodQuestion` por su `periodId`. Se añadió el endpoint de solo lectura `GET /employee-evaluations/periods/:id/preview` y se eliminó de este flujo la caché global compartida de grupos.
+
+Los borradores vacíos continúan usando catálogos globales activos, con una advertencia visible `GLOBAL_DRAFT`. Un publicado sin snapshots completos o un `isActive=false` con relaciones históricas devuelve conflicto y nunca recibe datos globales como sustitución.
+
+El detalle de hallazgos, contrato, archivos, validaciones, riesgos y checklist manual está en [MEJ-001-P1-4-snapshots-historicos.md](MEJ-001-P1-4-snapshots-historicos.md).
+
+No se modificaron publicación, creación de snapshots, evaluaciones históricas, puntuaciones, reportes P3, esquema ni migraciones.
