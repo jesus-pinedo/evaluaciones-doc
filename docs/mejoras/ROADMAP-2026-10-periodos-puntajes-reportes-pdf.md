@@ -169,6 +169,10 @@ Componentes candidatos:
 
 El responsable confirmó que **el filtro de periodo del dashboard funciona correctamente** en su entorno. Se considera validado el flujo principal de selección de periodo. **No se presume verificación completa** de casos de error 400/404, estados sin datos, cambios rápidos y sincronización `periodId` del detalle de evaluador. P3 sigue pendiente de cierre funcional integral; no se alteraron datos ni se recalcularon scores.
 
+### Comprobación del detalle por periodo — 2026-10-20
+
+El responsable confirma haber probado el detalle y haber observado que el payload incluye identificadores de evaluación y `periodId`, que cambian según el periodo consultado. Con la validación previa del selector, **el flujo principal de P3 queda validado funcionalmente por el responsable**. Las pruebas de situaciones excepcionales (400/404, periodo sin datos, alternancia rápida, estados de encabezado) permanecen como verificaciones complementarias; no se afirma cierre exhaustivo de toda la matriz ni pruebas automatizadas. Ver [MEJ-003](MEJ-003-reportes-por-periodo.md).
+
 ## 6. P4 / MEJ-004 — Descargar PDF individual
 
 ### Evidencia actual
