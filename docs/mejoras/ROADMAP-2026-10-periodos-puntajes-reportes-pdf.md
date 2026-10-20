@@ -237,6 +237,14 @@ Para **cada** MEJ-001…MEJ-005:
 
 Ver [avance y checklist de P1.1](MEJ-001-historico-creacion-periodos.md#17-avance-de-implementación--p11-reporte-de-codex-2026-10-14).
 
+### Prioridad inmediata — posible desincronización en «Mis Evaluaciones» (2026-10-20)
+
+La captura del evaluador muestra un periodo vigente **20/oct/2026–08/nov/2026** y simultáneamente **0/0 evaluaciones**. El responsable sospecha que la lista puede estar resolviendo otra campaña. La causa **no está verificada**; P1.3 ya diseñó `findCurrentPublishedPeriod` y su uso en los dos endpoints `my-team`. Revisar Network/JSON de ambos endpoints y conteos por `periodId + evaluatorId` en modo de solo lectura antes de cambiar código o generar asignaciones. **«Mis Evaluaciones» debe mostrar únicamente el periodo publicado vigente por fecha Bogotá**, no escoger el primer `isActive=true` arbitrariamente. Ver [incidencia en MEJ-001](MEJ-001-historico-creacion-periodos.md#24-incidencia-observada--mis-evaluaciones-muestra-00-durante-periodo-vigente-2026-10-20).
+
+### Backlog para el final — MEJ-006: corrección de puntajes históricos
+
+El responsable solicitó documentar y **aplazar** hasta el final el recálculo de evaluaciones completadas de 2025 con pesos explícitos P2. No rellenar `weight_percentage` de snapshots LEGACY como método rápido. Futuro: auditoría de solo lectura → `dry-run` con informe de diferencias → respaldo/trazabilidad de puntajes y PDFs con acuse → aprobación explícita → corrección controlada. Caso testigo evaluación 8120: **61,8 % LEGACY → 61,4 % ponderado**. **Sin SQL de actualización ni cambios de datos ahora.** Documento: [MEJ-006 — Recalculo histórico](MEJ-006-recalculo-historico-2025.md).
+
 ## 9. Fuentes de referencia
 
 - [Contexto funcional](../funcional/contexto-funcional.md)
