@@ -1,7 +1,7 @@
 # MEJ-002 — Plan acotado para ponderación por grupos
 
 **Fecha:** 2026-10-20  
-**Estado:** P2.1 implementado técnicamente; migración preparada y pendiente de ejecución autorizada. P2.2 no iniciado.
+**Estado:** P2.1 implementado y probado funcionalmente según confirmación del responsable; columnas aplicadas manualmente por SQL. P2.2 es el siguiente bloque, sin implementar.
 **Fuente:** auditoría [MEJ-002](MEJ-002-calculo-puntuaciones.md), formulario de grupos compartido por el responsable y plantilla HF-011 Rev9 adjunta al proyecto (sus fórmulas internas aún pendientes de contrastar).
 
 ## Decisiones del responsable
@@ -61,6 +61,14 @@ Criterios de aceptación: el CRUD conserva descripción independiente del peso; 
 
 **Resultado 2026-10-20:** implementación técnica terminada. Se añadieron campos nullable, contratos CRUD, edición React, total acumulado, copia a snapshots y pruebas unitarias. La migración no fue ejecutada y las verificaciones integradas con base/UI quedan pendientes de un ambiente autorizado. El detalle está registrado en [MEJ-002, sección 17](MEJ-002-calculo-puntuaciones.md#17-implementación-p21--persistencia-y-edición-del-peso-2026-10-20).
 
+### Validación reportada de P2.1 y migración manual (2026-10-20)
+
+El responsable confirma que **aplicó manualmente las columnas SQL de P2.1 en PostgreSQL** y **realizó pruebas funcionales satisfactorias**. No reportó fallos de CRUD o UI; se registra como validación realizada por él, no como inspección independiente de base de datos. **No se recalcularon ni corrigieron puntuaciones**.
+
+La base `sisproing` presenta historial Prisma incompleto; `prisma migrate status` mostró tres migraciones pendientes anteriores y `migrate deploy` falló con `P3005`. Después de la aplicación SQL manual **NO ejecutar `prisma migrate deploy` ni repetir la migración** sin reconciliar el historial/estado físico de las tablas. Registrar en la operación que las columnas existen por SQL manual, pero la migración `20261020100000_add_group_weight_percentage` **no está necesariamente marcada como aplicada** en `_prisma_migrations`. Regularizarlo en tarea técnica separada, sin inventar migraciones ejecutadas.
+
+La fórmula ponderada **no está implementada aún**. No publicar campañas nuevas esperando puntuación ponderada hasta validar P2.2.
+
 ### P2.2 — Fórmula ponderada en nuevas evaluaciones (después de P2.1)
 
 Precondiciones: contraste de la fórmula Excel, pesos ya persistidos, política de grupos/preguntas sin peso aprobada y compatibilidad para periodos antiguos definida.
@@ -68,6 +76,19 @@ Precondiciones: contraste de la fórmula Excel, pesos ya persistidos, política 
 Alcance: modificaciones puntuales a `evaluations.helper.js#calculateAndSaveScore`, `useEvaluationForm.ts#stats` y al DTO de grupos para consumir `weightPercentage`; pruebas numéricas contra una evaluación controlada de la plantilla.
 
 **Invariante obligatorio:** `COMPLETED` históricos no se recalculan ni modifican, y **los valores históricos persistidos se siguen mostrando**, aunque ahora existan nuevos pesos configurados. No se interpreta automáticamente un `NULL` como cero ni como peso extraído de la descripción. Definir una separación explícita LEGACY/WEIGHTED (o mecanismo equivalente simple) para distinguir periodos antiguos de nuevos sin una refactorización general.
+
+### Contrato de cálculo propuesto para P2.2 (sin refactoring)
+
+- **Cálculo bruto del grupo:** `(suma de puntajes válidos de sus preguntas / (N_preguntas_del_grupo * 5)) * 100`.
+- **Total ponderado:** `sum((porcentaje_grupo_sin_redondear * weightPercentage_grupo) / 100)` si todos los pesos son explícitos, válidos y suman 100 %.
+- **Redondeo:** un decimal solo al total para persistencia y visualización acordada; subtotales no deben redondearse antes de ponderar.
+- **Legacy:** los snapshots históricos sin pesos siguen usando la fórmula previa cuando sea necesario calcular un borrador; las evaluaciones `COMPLETED` históricas deben presentar el `score` persistido. No actualizar ni recalcular puntajes de 2025.
+- **Nuevos periodos:** antes de publicar, exigir pesos explícitos en todos los grupos utilizados, suma exactamente 100 %, ninguna pregunta sin grupo y grupos que aportan peso con al menos una pregunta; si el Excel muestra otra regla, **detener la implementación del cálculo y documentar la discrepancia**.
+- **Snapshots:** el cálculo usa exclusivamente `PeriodGroup.weightPercentage` del periodo, nunca `QuestionGroup` global ni el porcentaje incrustado en `description`.
+- **Sin pesos/mix nulos en periodo ya publicado:** solo un histórico completamente sin pesos puede usar `LEGACY`; mezcla de pesos nulos y no nulos debe generar un error explícito, no aplicar una suma parcial silenciosa. La distinción entre `LEGACY` y `WEIGHTED` puede basarse en snapshots si es inequívoca; no crear una nueva arquitectura de fórmulas salvo necesidad demostrada.
+- **Validar contra plantilla:** la captura contiene pesos que suman 100 %, pero las fórmulas internas de `HF-011 Evaluación de Desempeño Rev9 (2).xlsx` **siguen sin verificarse**. Codex debe inspeccionar el archivo original si está disponible en el workspace y confirmar fórmula de cada grupo y total. Si no puede acceder, documentar ese límite y detenerse antes de elegir por su cuenta una fórmula distinta.
+- **Protección histórica:** las evaluaciones completadas conservan `score` persistido incluso en el encabezado React; no modificar `ratingLabel` histórico, PDFs, correos, reglas de clasificación ni reportes excepto que un cambio mínimo del resultado visual sea indispensable.
+- **Validación:** ejemplos numéricos, casos de distinto número de preguntas, borrador parcial, escala 1–5, pesos 100 %, pesos `NULL`, grupo vacío, pregunta sin grupo, completada 2025 y dos periodos con pesos distintos. No crear registros ni enviar notificaciones reales en producción.
 
 ### P2.3 — Validación y cierre
 
