@@ -829,3 +829,23 @@ Los borradores vacíos continúan usando catálogos globales activos, con una ad
 El detalle de hallazgos, contrato, archivos, validaciones, riesgos y checklist manual está en [MEJ-001-P1-4-snapshots-historicos.md](MEJ-001-P1-4-snapshots-historicos.md).
 
 No se modificaron publicación, creación de snapshots, evaluaciones históricas, puntuaciones, reportes P3, esquema ni migraciones.
+
+
+## 24. Incidencia observada — Mis Evaluaciones muestra 0/0 durante periodo vigente (2026-10-20)
+
+**Fuente:** captura proporcionada por el responsable en la pantalla «Mis Evaluaciones» (2026-10-20). El encabezado dice **«Periodo vigente: 20 Oct 2026 al 08 Nov 2026»** y **«19 días restantes»**, pero el progreso figura **0/0**, con **0 pendientes, 0 en progreso y 0 evaluados**; la lista muestra «No se encontraron empleados para este filtro/búsqueda».
+
+**Hipótesis del responsable:** la página podría consultar evaluaciones de una campaña anterior en vez de las del periodo vigente. **Esto aún NO está confirmado**: el encabezado correcto no demuestra que el resumen/listado usen el mismo `periodId`, ni que existan asignaciones para el evaluador autenticado en el periodo actual.
+
+**Regla P1.3 vigente:** el periodo operativo NO es el primer `isActive=true` por orden arbitrario, sino el **publicado cuya fecha de inicio <= hoy Bogotá <= fecha de fin**; un `FINISHED` 2025 puede conservar `isActive=true` y **no debe** aparecer en «Mis Evaluaciones». `getMyTeamOverview` y `getMyTeamEvaluations` se documentaron como consumidores de `findCurrentPublishedPeriod` en P1.3, pero esto no se había comprobado contra estas asignaciones reales.
+
+**Auditoría inmediata dirigida, solo lectura al inicio:**
+
+1. Identificar las solicitudes reales a `GET /api/employee-evaluations/evaluations/my-team/overview` y `GET /api/employee-evaluations/evaluations/my-team/evaluations` en Network, conservar parámetros relevantes de `evaluatorId` y los `periodId` devueltos, y confirmar que ambos resuelven el mismo periodo vigente que el encabezado.
+2. Seguir `EvaluationsPage.tsx` y sus servicios React; verificar que no se combina encabezado del periodo vigente con listado cacheado, respuestas de otra petición o parámetro `evaluatorId` equivocado.
+3. Seguir `periods.service.js#getMyTeamOverview`, `evaluations.controller.js#getMyTeamEvaluations`, `currentPeriod.service.js#findCurrentPublishedPeriod` y sus consultas a `Evaluation`; verificar filtro por `periodId`, `evaluatorId`, `isActive`, estado y paginación.
+4. Con acceso **autorizado de solo lectura**, comparar conteos de `evaluation.evaluations` por **periodId + evaluatorId**, así como fecha/estado/publicación del periodo; comprobar si el evaluador realmente tiene asignaciones creadas al publicar.
+5. Distinguir: (a) periodo incorrecto; (b) `evaluatorId` incorrecto; (c) asignaciones inexistentes; (d) filtros/estado/paginación; (e) desincronía React/servidor; no inventar datos ni escribir registros por hipótesis.
+6. Preparar corrección **mínima** solo tras confirmar causa. Mantener separadas consultas operativas de «Mis Evaluaciones» (vigente por fecha) y selector histórico del dashboard P3 (por `periodId`).
+
+**Estado:** **incidencia abierta, causa no diagnosticada**. No modificar histórico, scores, respuestas, periodos o asignaciones sin autorización. El recálculo de 2025 pasa a [MEJ-006](MEJ-006-recalculo-historico-2025.md) y queda aplazado.
