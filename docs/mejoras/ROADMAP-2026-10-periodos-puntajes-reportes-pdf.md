@@ -82,18 +82,18 @@ La auditoría identifica cálculo tanto en:
 - **Frontend:** `sisproing-app/src/modules/employee-evaluations/evaluations/hooks/useEvaluationForm.ts` (cálculo visual inmediato); revisar también las tarjetas de preguntas y cualquier vista previa.
 - **Backend:** `api/src/modules/employee-evaluations/evaluations/evaluations.helper.js#calculateAndSaveScore` y el flujo de borrador/finalización de `evaluations.service.js`.
 
-Fórmula documentada actualmente, **pendiente de ratificación de negocio**:
+Fórmula LEGACY identificada en la auditoría original (la decisión ponderada posterior se registra más abajo):
 
 `porcentaje_total = redondear_1_decimal((suma_puntos / (numero_preguntas * 5)) * 100)`.
 
-Las preguntas sin respuesta cuentan en el máximo del periodo; no hay peso por grupo. El frontend también tiene un **porcentaje de avance del formulario** que considera fortalezas/debilidades y **no es el puntaje de desempeño**.
+En LEGACY, las preguntas sin respuesta cuentan en el máximo del periodo y no hay peso por grupo. El frontend también tiene un **porcentaje de avance del formulario** que considera fortalezas/debilidades y **no es el puntaje de desempeño**.
 
 ### Trabajo previsto
 
 1. Localizar **todas** las operaciones de cálculo visual de puntaje, porcentaje por grupo, total, categoría y avance; no confundir estos conceptos.
 2. Comparar con el cálculo persistido en Node y con la lógica de los reportes/impresión que consume ese valor.
 3. Acordar la fórmula exacta de **cada grupo** y del **total**, tratamiento de preguntas sin responder, redondeo y escala.
-4. Proponer como base, si Gestión Humana lo aprueba, **sin ponderaciones**, con máximo 5 por pregunta; calcular el total desde las respuestas, no promediando porcentajes de grupos ya redondeados.
+4. **Decisión posterior aprobada:** grupos WEIGHTED usan peso numérico de snapshot (total de pesos 100 %), calculando subtotales sin redondeo intermedio; los históricos LEGACY mantienen su fórmula.
 5. Corregir divergencias con pruebas de casos numéricos (grupos de distinto tamaño, respuestas parciales, todas completas y extremos de 1 a 5).
 6. No recalcular ni sobrescribir silenciosamente los resultados históricos.
 
@@ -106,22 +106,30 @@ Las preguntas sin respuesta cuentan en el máximo del periodo; no hay peso por g
 
 ### Decisión pendiente esencial
 
-**¿La corrección aplica únicamente a evaluaciones nuevas o también se recalcularán las antiguas?** No se debe cambiar el histórico por defecto.
+**Resuelto:** solo se aplica la regla ponderada a periodos nuevos con pesos; **no recalcular ni actualizar** evaluaciones históricas de 2025. Cualquier corrección de puntajes existentes se realizará en otro proceso autorizado.
 
 
 **Evidencia a revisar en P2 (2026-10-16):** la vista histórica 2025 muestra porcentajes integrados en los nombres de grupos, por ejemplo Calidad (10%), Actitud (15%), Innovación y Comunicaciones (5%) y Planeación (15%). Determinar si son texto descriptivo o ponderaciones requeridas; no cambiar cálculo ni datos históricos sin aprobar fórmula y alcance de corrección.
 
-**Avance P2.1 (2026-10-20):** Codex reportó la persistencia nullable `weightPercentage` en `QuestionGroup`/`PeriodGroup`, migración SQL preparada sin ejecutar, CRUD y formulario React ajustados, copia del peso a snapshots nuevos y 12/12 pruebas técnicas aprobadas. **Pendiente:** aplicar migración solo en ambiente autorizado, verificar tablas/constraints y ejecutar checklist integrado. **No se han modificado puntajes ni snapshots históricos y P2.2 aún no está implementado.** Ver [MEJ-002, sección 17](MEJ-002-calculo-puntuaciones.md#17-implementación-p21--persistencia-y-edición-del-peso-2026-10-20).
+**Avance P2.1 (2026-10-20):** Codex reportó la persistencia nullable `weightPercentage` en `QuestionGroup`/`PeriodGroup`, migración SQL preparada sin ejecutar, CRUD y formulario React ajustados, copia del peso a snapshots nuevos y 12/12 pruebas técnicas aprobadas. **Pendiente:** aplicar migración solo en ambiente autorizado, verificar tablas/constraints y ejecutar checklist integrado. **No se han modificado puntajes ni snapshots históricos.** Ver [MEJ-002, sección 17](MEJ-002-calculo-puntuaciones.md#17-implementación-p21--persistencia-y-edición-del-peso-2026-10-20).
 
-**Validación posterior de P2.1 (2026-10-20):** el responsable confirmó pruebas satisfactorias y aplicación de las columnas mediante SQL manual en PostgreSQL. La historia de Prisma sigue sin reconciliarse (P3005; migraciones anteriores pendientes), por lo que no corresponde ejecutar `migrate deploy` hasta resolverlo. **P2.2 pasa a siguiente bloque**, sujeto a verificar fórmula exacta del Excel y a preservar scores `COMPLETED` del histórico. Ver [plan P2](MEJ-002-plan-ponderacion-grupos.md).
+**Validación posterior de P2.1 (2026-10-20):** el responsable confirmó pruebas satisfactorias y aplicación de las columnas mediante SQL manual en PostgreSQL. La historia de Prisma sigue sin reconciliarse (P3005; migraciones anteriores pendientes), por lo que no corresponde ejecutar `migrate deploy` hasta resolverlo. **P2.2 se desarrolló después** y conserva scores `COMPLETED` del histórico. Ver [plan P2](MEJ-002-plan-ponderacion-grupos.md).
 
 ### Actualización de alcance P2 — 2026-10-20
 
 El responsable decidió **no corregir ni recalcular puntajes históricos ahora**, incluyendo 2025; cualquier ajuste de valores persistidos será un proceso futuro independiente. El trabajo actual de P2 es incorporar **peso numérico por grupo** y posteriormente ajustar el cálculo únicamente para periodos nuevos, **sin refactoring**.
 
-Orden acotado: **P2.1** modelo/catálogo/formulario/snapshot de peso (sin ejecutar migraciones productivas ni recalcular score); **P2.2** verificar fórmula del Excel HF-011 Rev9 y ajustar puntaje ponderado en Node y React para nuevos periodos con distinción explícita frente a legacy; **P2.3** pruebas y cierre. La suma visible de pesos de los ocho grupos es 100 %, pero resta verificar la fórmula interna del Excel y decidir tratamiento de grupos sin preguntas o sin peso.
+Orden acotado: **P2.1** modelo/catálogo/formulario/snapshot de peso (sin ejecutar migraciones productivas ni recalcular score); **P2.2** verificar fórmula del Excel HF-011 Rev9 y ajustar puntaje ponderado en Node y React para nuevos periodos con distinción explícita frente a legacy; **P2.3** pruebas y cierre. La suma visible de pesos de los ocho grupos es 100 %. La fórmula interna del Excel fue verificada y se aprobó usar pesos explícitos, aunque difieren del promedio igualitario de Cultura Organizacional en el Excel. Grupos sin preguntas/pesos se controlan en la publicación ponderada.
 
 Ver [MEJ-002 — Plan de ponderación por grupos](MEJ-002-plan-ponderacion-grupos.md).
+
+### Avance P2.2 y siguiente paso P2.3 — 2026-10-20
+
+**P2.2 implementado técnicamente según Codex, aún sin validación integrada con BD/UI.** Fórmula aprobada: subtotales de grupo sin redondear × `PeriodGroup.weightPercentage/100`, suma ponderada y redondeo final a un decimal. Node distingue LEGACY/WEIGHTED, bloquea configuraciones incompletas; React replica la fórmula en vivo y utiliza el score persistido para `COMPLETED`. La publicación exige grupos/preguntas y pesos coherentes que sumen 100 %. Pruebas reportadas: **26/26 Node**, builds y typechecks aprobados; no se ejecutaron publicaciones ni cambios de datos.
+
+**Diferencia aprobada frente al Excel:** pesos explícitos `20/10/10/5/15/5/15/20`; el promedio de la celda `P27` del Excel daba `10/10/10/10` como pesos efectivos para Cultura Organizacional. Caso discriminante documentado: software **28 %** vs Excel **36 %**.
+
+**P2.3 pendiente:** comprobar flujo completo de publicación/evaluación en un entorno aislado, contraste visual React-API-DB, autoguardado, periodos LEGACY, protecciones de histórico y bloqueo de configuración inválida. No recalcular scores históricos ni ejecutar `prisma migrate deploy` hasta reconciliar el historial `P3005`. Ver [MEJ-002 §19](MEJ-002-calculo-puntuaciones.md#19-implementación-p22--cálculo-ponderado-2026-10-20).
 
 ## 5. P3 / MEJ-003 — Reporte de seguimiento por periodo
 
