@@ -1,7 +1,7 @@
 # MEJ-002 — Plan acotado para ponderación por grupos
 
 **Fecha:** 2026-10-20  
-**Estado:** ruta de implementación propuesta; sin modificaciones al código ni datos desde este documento.  
+**Estado:** P2.1 implementado técnicamente; migración preparada y pendiente de ejecución autorizada. P2.2 no iniciado.
 **Fuente:** auditoría [MEJ-002](MEJ-002-calculo-puntuaciones.md), formulario de grupos compartido por el responsable y plantilla HF-011 Rev9 adjunta al proyecto (sus fórmulas internas aún pendientes de contrastar).
 
 ## Decisiones del responsable
@@ -44,7 +44,7 @@ Redondear el **total final** a un decimal según la convención existente, y no 
 
 ## Fases de implementación — una por una
 
-### P2.1 — Persistencia y edición del peso (siguiente trabajo)
+### P2.1 — Persistencia y edición del peso (implementado técnicamente)
 
 Alcance permitido:
 
@@ -58,6 +58,8 @@ Alcance permitido:
 8. No insertar/actualizar datos reales ni ejecutar publicaciones de prueba en entornos productivos.
 
 Criterios de aceptación: el CRUD conserva descripción independiente del peso; se muestra 100 % para los ocho pesos de referencia cuando se ingresan manualmente; el nuevo snapshot copia exactamente el peso vigente al publicar en entorno aislado; snapshots históricos permanecen sin cambios; API y React compilan. Los registros anteriores con `NULL` siguen siendo legibles.
+
+**Resultado 2026-10-20:** implementación técnica terminada. Se añadieron campos nullable, contratos CRUD, edición React, total acumulado, copia a snapshots y pruebas unitarias. La migración no fue ejecutada y las verificaciones integradas con base/UI quedan pendientes de un ambiente autorizado. El detalle está registrado en [MEJ-002, sección 17](MEJ-002-calculo-puntuaciones.md#17-implementación-p21--persistencia-y-edición-del-peso-2026-10-20).
 
 ### P2.2 — Fórmula ponderada en nuevas evaluaciones (después de P2.1)
 

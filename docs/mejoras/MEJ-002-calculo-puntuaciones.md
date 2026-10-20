@@ -487,3 +487,123 @@ Esta recomendación no constituye autorización para implementar cambios.
 - **Recomendación:** conservar inicialmente el método A, añadir grupo solo como subtotal informativo, centralizar cálculo/clasificación en backend y no modificar 2025.
 - **Riesgo histórico principal:** cambiar React o la reclasificación del PDF puede cambiar lo visible sin alterar la base, provocando diferencias entre formulario, PDF y resultado persistido.
 
+## 17. Implementación P2.1 — Persistencia y edición del peso (2026-10-20)
+
+### 17.1 Estado y límites
+
+**Estado:** **Implementado técnicamente; migración y prueba integrada pendientes de autorización.**
+
+P2.1 incorpora persistencia explícita y edición del peso de grupos sin modificar `calculateAndSaveScore`, `useEvaluationForm.ts`, scores, respuestas, evaluaciones completadas, PDF, correos o reportes. No se ejecutaron migraciones, publicaciones ni operaciones sobre datos reales.
+
+La suma de 100 % se presenta como ayuda administrativa, pero no bloquea todavía la publicación. La fórmula ponderada continúa reservada para P2.2.
+
+### 17.2 Campos nuevos
+
+Se añadieron a Prisma:
+
+| Modelo | Campo | Tipo | Columna | Compatibilidad |
+|---|---|---|---|---|
+| `QuestionGroup` | `weightPercentage` | `Decimal? @db.Decimal(5, 2)` | `weight_percentage` | `NULL` permitido para grupos existentes. |
+| `PeriodGroup` | `weightPercentage` | `Decimal? @db.Decimal(5, 2)` | `weight_percentage` | `NULL` permitido para snapshots históricos. |
+
+Fuentes: `api/prisma/modules/evaluations.prisma#QuestionGroup`, `#PeriodGroup` y el esquema ensamblado `api/prisma/schema.prisma`.
+
+La migración preparada es `api/prisma/migrations/20261020100000_add_group_weight_percentage/migration.sql`. Agrega ambas columnas nullable y restricciones `CHECK` para aceptar únicamente `NULL` o valores entre 0 y 100. No contiene `UPDATE`, backfill ni modificación de snapshots existentes.
+
+### 17.3 Contratos API actualizados
+
+Base: `/api/employee-evaluations/configurations/groups`.
+
+| Operación | Cambio |
+|---|---|
+| `GET /` y `GET /:id` | Cada grupo incluye `weightPercentage: number | null`. Prisma Decimal se normaliza a número para el contrato JSON. |
+| `POST /` | Acepta `{ description, weightPercentage }`; el peso puede ser número, cadena decimal o `null`. |
+| `PUT /:id` | Acepta `{ description, weightPercentage }`; `undefined` conserva el peso actual y `null` lo deja explícitamente sin configurar. |
+| `GET /periods/:id/preview` | Cada grupo global/snapshot incluye `weightPercentage`; “Preguntas sin grupo” usa `null`. |
+
+Fuentes: `api/src/modules/employee-evaluations/configurations/groups/groups.controller.js`, `groups.service.js`, `groupWeight.utils.js` y `periods/snapshots/periodSnapshots.service.js`.
+
+### 17.4 Validaciones implementadas
+
+- rango inclusivo: 0–100;
+- máximo dos decimales;
+- `NULL` y cadena vacía se interpretan como peso no configurado;
+- `undefined` en actualización conserva el valor actual;
+- la base queda protegida adicionalmente por `CHECK` una vez se ejecute la migración;
+- no se extrae ni transforma ningún porcentaje contenido en `description`.
+
+La descripción y el peso se editan en campos separados en `sisproing-app/src/modules/employee-evaluations/configurations/groups/GroupsPage.tsx`. La pantalla muestra el peso de cada fila, el total acumulado y la cantidad de grupos sin peso. La suma distinta de 100 % es una advertencia, no un bloqueo.
+
+### 17.5 Conservación en snapshots
+
+`periodSnapshots.service.js#createSnapshotsForPeriod` usa `buildPeriodGroupSnapshotData` para copiar al nuevo `PeriodGroup`:
+
+- `description` sin alteraciones;
+- `weightPercentage` exacto o `NULL`;
+- `periodId` y auditoría existentes.
+
+Esta lógica solo corre al publicar un periodo nuevo. La migración añade una columna nullable y no actualiza filas de `period_groups`, por lo que los snapshots publicados previamente permanecen en `NULL` y siguen siendo consultables.
+
+### 17.6 Archivos modificados por P2.1
+
+#### API
+
+- `prisma/modules/evaluations.prisma`;
+- `prisma/schema.prisma` (generado desde los módulos);
+- `prisma/migrations/20261020100000_add_group_weight_percentage/migration.sql`;
+- `src/modules/employee-evaluations/configurations/groups/groupWeight.utils.js`;
+- `src/modules/employee-evaluations/configurations/groups/groups.controller.js`;
+- `src/modules/employee-evaluations/configurations/groups/groups.service.js`;
+- `src/modules/employee-evaluations/periods/snapshots/periodGroupSnapshot.utils.js`;
+- `src/modules/employee-evaluations/periods/snapshots/periodSnapshots.service.js`;
+- `tests/employee-evaluations/group-weight.test.js`.
+
+#### React
+
+- `src/modules/employee-evaluations/configurations/groups/GroupsPage.tsx`;
+- `src/modules/employee-evaluations/configurations/groups/groups.service.ts`;
+- `src/modules/employee-evaluations/periods/periods.service.ts` (contrato de vista previa).
+
+#### Documentación
+
+- `docs/mejoras/MEJ-002-calculo-puntuaciones.md`;
+- `docs/mejoras/MEJ-002-plan-ponderacion-grupos.md`.
+
+### 17.7 Validación ejecutada
+
+| Validación | Resultado |
+|---|---|
+| `npx prisma validate --schema prisma/schema.prisma` | **Aprobada**. |
+| Pruebas Node dirigidas de P2.1 y selección de periodo | **12/12 aprobadas**. |
+| API `npm run type-check` | **Aprobada**. |
+| API `npm run build` | **Aprobada**. |
+| React `npm run typecheck` | **Aprobada**. |
+| ESLint dirigido a archivos React modificados | **Aprobado**. |
+| React `npm run build` | **Aprobada**; solo avisos informativos de datos de navegadores desactualizados. |
+
+Las pruebas de `group-weight.test.js` cubren límites, decimales, rechazo de valores inválidos, suma de los ocho pesos de referencia y copia del peso/`NULL` al objeto del snapshot.
+
+### 17.8 Checklist de verificación controlada
+
+- [ ] Ejecutar la migración únicamente en un ambiente autorizado y confirmar que los registros existentes quedan con `weight_percentage = NULL`.
+- [ ] Crear un grupo con peso y comprobar request, respuesta y persistencia.
+- [ ] Editar el peso de un grupo sin alterar su descripción.
+- [ ] Consultar el grupo y verificar que el API devuelve `number | null`.
+- [ ] Ingresar manualmente los ocho pesos de referencia y comprobar total visible de 100 %.
+- [ ] Confirmar lectura y edición controlada de grupos antiguos con peso `NULL`.
+- [ ] Publicar un periodo exclusivamente en ambiente aislado y verificar que `PeriodGroup.weightPercentage` copia el valor global vigente.
+- [ ] Confirmar que snapshots de periodos anteriores permanecen en `NULL` y sin actualizaciones.
+- [ ] Confirmar que ningún `score` o `ratingLabel` cambió durante las verificaciones.
+
+No se publicó ningún periodo durante esta implementación.
+
+### 17.9 Riesgos y despliegue pendiente
+
+1. **Orden de despliegue:** ejecutar la migración antes de iniciar API/React que consulten la nueva columna.
+2. **Tablas efectivas:** el SQL usa los nombres mapeados actuales `evaluation.question_groups` y `evaluation.period_groups`; deben verificarse en el ambiente objetivo antes de autorizar despliegue, debido a la divergencia histórica de migraciones documentada en el proyecto.
+3. **Pesos incompletos:** `NULL` preserva compatibilidad, pero un periodo nuevo todavía puede publicarse con suma distinta de 100 %; la política bloqueante se decidirá antes de P2.2.
+4. **Precisión:** API y UI admiten dos decimales; no se implementó redondeo ni fórmula ponderada de resultados.
+5. **Histórico:** regenerar el cliente Prisma no altera datos; la migración preparada solo añade columnas/constraints nullable. No existe backfill automático desde nombres.
+
+**Migración pendiente:** `20261020100000_add_group_weight_percentage` está creada pero no ejecutada en ningún ambiente por esta tarea.
+
