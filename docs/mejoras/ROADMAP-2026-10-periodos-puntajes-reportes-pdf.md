@@ -159,6 +159,12 @@ Componentes candidatos:
 5. Cambiar de periodo no deja datos residuales del anterior.
 6. Los filtros de proyecto/centro de costo y nuevos consolidados **no forman parte** de este alcance salvo que se aprueben al detallar P3.
 
+### Avance P3.2 — 2026-10-20
+
+**Implementado según el informe de Claude y documentado en [MEJ-003](MEJ-003-reportes-por-periodo.md#6-implementación--p32-2026-10-20)**: los endpoints existentes `dashboard-progress` y `evaluations` aceptan `periodId` opcional; la resolución predeterminada usa periodo vigente de Bogotá y, de faltar, publicado más reciente. Los errores `periodId` inválido (400), inexistente/borrador (404) y los estados vacíos están contemplados. React incorpora selector y estado por periodo, bloqueo de respuestas obsoletas, encabezado según periodo y modal de evaluador con el mismo `periodId` mediante contexto mínimo.
+
+**Validación:** typecheck React y sintaxis Node aprobados. Jest de backend y build Vite no ejecutables en el entorno de Claude por problemas preexistentes; ESLint dirigido informó dos incidencias previas. **P3.2 aún requiere validación manual en navegador y API con periodos reales autorizados antes del cierre funcional**: histórico 2025, default vigente o último publicado, estados vacíos, 400/404, alternancia rápida, sincronía del detalle y controles deshabilitados. No se modificaron P1, P2, cálculos, datos históricos, PDFs ni notificaciones.
+
 ## 6. P4 / MEJ-004 — Descargar PDF individual
 
 ### Evidencia actual
