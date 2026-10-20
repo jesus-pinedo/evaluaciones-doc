@@ -179,7 +179,7 @@ El responsable confirma haber probado el detalle y haber observado que el payloa
 
 Existe `GET /api/employee-evaluations/evaluations/:id/pdf`, la generación con Puppeteer y la vista `EvaluationPrintPage.tsx`. El correo de evaluación completada también adjunta PDF. Conviene **reutilizar** estas capacidades antes de crear un generador nuevo.
 
-### Ubicación funcional recomendada
+### Propuesta original (sustituida por la decisión aprobada)
 
 - **Gestión Humana — Reporte → Seguimiento por Evaluador → Detalle del evaluador → Fila del colaborador → «Ver / Descargar PDF»**. El reporte es el lugar natural para localizar una evaluación de cualquier periodo.
 - **Evaluador — Mis Evaluaciones → Evaluación completada → «Ver / Imprimir / Descargar PDF»**. Mantener o ampliar la capacidad ya existente.
@@ -201,6 +201,15 @@ Existe `GET /api/employee-evaluations/evaluations/:id/pdf`, la generación con P
 - Nombre de archivo y datos que se incluyen en el documento.
 - Si la constancia de recibido se incorpora en el PDF y qué ocurre cuando el acuse llega después de generarlo.
 
+
+
+### Decisión funcional aprobada — segunda vista en Reportes (2026-10-20)
+
+El responsable aprobó **dos vistas dentro de Reportes**: `Seguimiento` (dashboard existente, sin cambiar) y **`Consulta de Evaluaciones`** (nueva), para buscar directamente por empleado **sin conocer su evaluador**, filtrar por periodo publicado y estado, y descargar el PDF de cada evaluación `COMPLETED` de forma individual. La tabla agrupada por evaluador y su modal siguen siendo herramientas de seguimiento; la descarga no debe colocarse en la fila agregada del evaluador. El botón «Reenviar» se deja para un futuro flujo de notificación/acuse, fuera de P4.
+
+Reutilizar `GET /reports/evaluations` (adaptación mínima para búsqueda global por empleado si es necesaria), `GET /evaluations/:id/pdf` y la selección de periodos P3. **Precondición de seguridad:** comprobar y exigir en el servidor autenticación y autorización real para consultar/descargar un `evaluationId` arbitrario, pues la auditoría previa advirtió ausencia de control ownership en el endpoint PDF. Si el modelo de roles/permisos no se puede determinar, detener exposición de la descarga y reportar el bloqueo.
+
+**Etapas:** P4.1 auditoría técnica dirigida del contrato y permisos → P4.2 implementación de vista/descarga → P4.3 pruebas de integración. No modificar P1/P2/P3, histórico ni correos. Documento de referencia: [MEJ-004 — Consulta y descarga individual](MEJ-004-consulta-descarga-evaluaciones.md).
 ## 7. P5 / MEJ-005 — Verificar comportamiento existente antes de proponer reasignación (prioridad baja)
 
 Durante una campaña, un colaborador puede cambiar de proyecto, área o jefe después de que se publicaron y generaron las evaluaciones. El responsable confirma que **implementó un trigger para actualizar al evaluador y funciona**. No se realizará revisión ni cambio ahora. A futuro, si se solicita, únicamente se documentará el SQL exacto y sus condiciones sobre periodo, estado e histórico.
