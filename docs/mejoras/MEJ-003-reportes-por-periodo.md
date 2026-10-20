@@ -321,3 +321,10 @@ Errores (antes ambos endpoints lanzaban `Error` plano sin código/HTTP estructur
 El responsable del proyecto probó el **filtro/selector de periodo del dashboard** en su entorno y reportó: **«funciona perfecto el filtro»**. Se registra como **validación manual satisfactoria del flujo principal de selección de periodo**, no como comprobación independiente del código o evidencia de todos los casos del checklist P3.2.
 
 **Estado:** P3.2 implementado y selector principal validado por el responsable. Para cierre funcional completo de P3 siguen sin constancia individual de verificación: consistencia del `periodId` en el detalle del evaluador; alternancia rápida sin respuestas obsoletas; estados vacío/errores 400/404 y encabezados ACTIVE/FINISHED/SCHEDULED; además de las pruebas automatizadas que el entorno de Claude no permitió ejecutar. No se modificó código ni datos por este registro. Mantener P1/P2 y los scores históricos intactos.
+
+
+### Comprobación manual adicional — consistencia del detalle (2026-10-20)
+
+El responsable confirma que probó el detalle asociado al selector y observó en el **payload de las solicitudes** los identificadores de evaluación y periodo; reporta que **difieren según el periodo consultado**. Se registra como validación manual positiva del enlace entre selección de periodo y consulta de detalle, complementaria a la prueba satisfactoria del selector. No se inspeccionaron directamente esos payloads ni se contrastaron las filas retornadas con la base; no se presume que se hayan ejecutado todas las pruebas del checklist.
+
+**Estado P3:** flujo principal del selector y navegación al detalle **validado por el responsable**. Quedan como pruebas complementarias los errores 400/404, periodo vacío, alternancia rápida, encabezados por estado, controles deshabilitados y cobertura automatizada futura. Sin nuevos cambios de código ni datos.
