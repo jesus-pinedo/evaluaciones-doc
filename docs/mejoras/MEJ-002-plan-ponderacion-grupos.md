@@ -1,7 +1,7 @@
 # MEJ-002 — Plan acotado para ponderación por grupos
 
 **Fecha:** 2026-10-20  
-**Estado:** P2.1 implementado y probado funcionalmente según confirmación del responsable; columnas aplicadas manualmente por SQL. P2.2 implementado técnicamente con regla de ocho pesos explícitos y pruebas automatizadas; validación integrada pendiente.
+**Estado:** P2.1 implementado y probado funcionalmente según confirmación del responsable; columnas aplicadas manualmente por SQL. P2.2 y P2.3 implementados y validados técnica e integralmente en entornos aislados. Pendiente únicamente la comprobación operativa de solo lectura sobre el histórico real de 2025.
 **Fuente:** auditoría [MEJ-002](MEJ-002-calculo-puntuaciones.md), formulario de grupos compartido por el responsable y plantilla HF-011 Rev9 inspeccionada en sus fórmulas internas.
 
 ## Decisiones del responsable
@@ -95,6 +95,10 @@ Alcance: modificaciones puntuales a `evaluations.helper.js#calculateAndSaveScore
 ### P2.3 — Validación y cierre
 
 Probar escenarios de múltiples grupos, diferentes cantidades de preguntas, pesos 100 %, fronteras y preguntas sin grupo; comparar con la hoja original. Revisar posibles discrepancias visibles en formulario/PDF sin rediseñar PDF/correos/clasificación en esta fase, salvo ajuste mínimo imprescindible y autorizado.
+
+**Resultado 2026-10-20:** validación técnica terminada sin defectos funcionales detectados. Node confirmó mínimo `20 %`, máximo `100 %`, borrador incompleto, distinta cantidad de preguntas, redondeo y el caso discriminante `28 %`. Una sesión React contra un API sintético confirmó actualización inmediata, avance independiente, autoguardado, finalización y reapertura con `28 %`. Una prueba Prisma sobre PostgreSQL 15 desechable confirmó la persistencia del mismo resultado y que pesos/respuestas no cambiaron. La publicación se validó mediante la función bloqueante con todos los casos inválidos solicitados y el grupo vacío de peso cero permitido. No se usaron datos reales ni se ejecutaron migraciones o publicaciones. Matriz y evidencia completa en [MEJ-002, sección 20](MEJ-002-calculo-puntuaciones.md#20-p23--validación-funcional-e-integrada-2026-10-20).
+
+El cierre técnico de P2 está completo. El cierre operativo total queda condicionado a consultar, con acceso explícitamente autorizado y de solo lectura, una muestra de evaluaciones `COMPLETED` del periodo real 2025 y confirmar en React que muestran el score persistido sin alteraciones.
 
 ## Exclusiones expresas
 

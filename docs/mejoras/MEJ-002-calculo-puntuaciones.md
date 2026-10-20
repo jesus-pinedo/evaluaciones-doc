@@ -752,3 +752,91 @@ Resultados:
 
 No se ejecutaron migraciones, publicaciones, modificaciones de snapshots, actualizaciones de scores, recálculos históricos, cron jobs, correos ni commits.
 
+## 20. P2.3 — Validación funcional e integrada (2026-10-20)
+
+### 20.1 Entorno y protección de datos
+
+Antes de las pruebas integradas se inventariaron los recursos locales sin leer archivos `.env` ni credenciales de la aplicación. No se encontró una base de pruebas de PROING: el PostgreSQL que escuchaba localmente pertenecía a otro proyecto y el `docker-compose.test.yml` del API está limitado al módulo de inventario. Por tanto:
+
+- no se conectó a ninguna base real, productiva o compartida;
+- no se consultaron ni modificaron personas, evaluaciones o periodos reales;
+- no se publicó ningún periodo ni se generaron asignaciones, notificaciones o correos;
+- no se ejecutó ninguna migración Prisma;
+- la prueba PostgreSQL usó un contenedor PostgreSQL 15 temporal, con almacenamiento en memoria, puerto local aislado y base exacta `hf011_p23_test`; el contenedor fue eliminado al terminar;
+- la prueba de navegador usó Vite y un API HTTP local con datos sintéticos; ambos procesos fueron detenidos al terminar.
+
+La comprobación directa, de solo lectura, de evaluaciones reales completadas en 2025 queda pendiente porque no existe en este entorno una conexión identificada y autorizada para ese fin.
+
+### 20.2 Matriz de escenarios
+
+| Escenario | Resultado esperado | Resultado obtenido | Evidencia | Estado |
+|---|---:|---:|---|---|
+| Ocho grupos, todas las respuestas en `5` | `100,0 %` | `100,0 %` | Prueba Node de `calculateEvaluationScore` | **Aprobado** |
+| Ocho grupos, todas las respuestas en `1` | `20,0 %` | `20,0 %` | Prueba Node de `calculateEvaluationScore` | **Aprobado** |
+| Caso discriminante aprobado | `28,0 %`, no `36,0 %` | Node `28,0`; React `28,0`; PostgreSQL `28,0` | Prueba unitaria, sesión React y transacción Prisma aislada | **Aprobado** |
+| Borrador con respuestas incompletas | Preguntas faltantes aportan cero y permanecen en el denominador | Caso controlado `25,0 %` | Prueba Node | **Aprobado** |
+| Grupos con diferente cantidad de preguntas | Promedio interno por grupo antes de ponderar | `40,0 %` en caso `25/75` con `1/4` preguntas | Prueba Node | **Aprobado** |
+| Redondeo final | Un decimal, sin redondeo intermedio | `46,7 %` | Prueba Node con pesos `33,33/33,33/33,34` | **Aprobado** |
+| Actualización visual inmediata | El encabezado cambia antes del autoguardado | `20,0 → 28,0`; indicador aún en “Guardando...” | Navegador local controlado | **Aprobado** |
+| Avance independiente del score | El avance no cambia al modificar respuestas ya diligenciadas | Permaneció en `100 %` mientras el score cambió a `28,0` | Navegador local controlado | **Aprobado** |
+| Autoguardado | API persiste el mismo valor que React | Un `PUT /draft`; score Node persistido por el mock: `28,0` | Estado del API local sintético | **Aprobado** |
+| Finalización | Conserva el resultado ponderado correcto | Un `POST /finalize`; score `28,0`; formulario pasó a solo lectura | Navegador/API local sintético | **Aprobado** |
+| Reapertura de completada | Presenta el score persistido | Tras recargar mostró `28,0`, avance `100 %` y controles deshabilitados | Navegador local controlado | **Aprobado** |
+| Fuente de pesos | Usa snapshot `PeriodGroup`, no nombre ni catálogo global | Prisma leyó `evaluation.period_groups.weight_percentage`; no hubo consulta a `QuestionGroup` | Prueba PostgreSQL y revisión del include Prisma | **Aprobado** |
+| Descripción con porcentajes falsos | No altera el resultado | Conservó `28,0 %` usando los pesos explícitos | Prueba Node | **Aprobado** |
+| Periodo completamente `NULL` | Fórmula LEGACY | `40,0 %` en caso controlado | Prueba Node | **Aprobado** |
+| Configuración parcialmente ponderada | Error explícito, nunca LEGACY | `EVAL_PERIOD_WEIGHT_PARTIAL` | Pruebas Node de cálculo y publicación | **Aprobado** |
+| Completada sintética “2025” | Muestra el score almacenado sin recalcular | Conservó `73,4` aunque la respuesta aislada no corresponde a ese resultado | Prueba de `formatEvaluationForFrontend` | **Aprobado** |
+| Histórico 2025 real | Consulta de solo lectura, sin alteraciones | No ejecutada por ausencia de conexión segura/autorizada | Checklist operativo | **Pendiente de autorización** |
+
+La prueba PostgreSQL creó exclusivamente datos sintéticos dentro de la base desechable. `calculateAndSaveScore` actualizó el `score` y `rating_label` de esa evaluación de prueba; comparaciones antes/después confirmaron que las respuestas y los pesos del snapshot no cambiaron.
+
+### 20.3 Validación de publicación
+
+La misma resolución de configuración invocada por `periods.service.js` al publicar se ejecutó de forma aislada con `requireWeighted: true`:
+
+| Configuración | Resultado esperado y obtenido |
+|---|---|
+| Pesos `40/50` | Rechazo `EVAL_PERIOD_WEIGHT_SUM_INVALID`. |
+| Pesos `100/NULL` | Rechazo `EVAL_PERIOD_WEIGHT_PARTIAL`. |
+| Pregunta sin grupo participante | Rechazo `EVAL_PERIOD_WEIGHTED_UNGROUPED_QUESTIONS`. |
+| Grupo con peso positivo sin preguntas | Rechazo `EVAL_PERIOD_WEIGHTED_EMPTY_GROUP`. |
+| Grupo vacío con peso `0 %`, resto válido | Aceptado como `WEIGHTED`. |
+| Todos los pesos `NULL` al intentar publicar | Rechazo `EVAL_PERIOD_WEIGHT_REQUIRED`. |
+
+No se llamó al endpoint real de publicación: hacerlo habría creado snapshots, asignaciones y posibles efectos laterales fuera del entorno aislado. La prueba valida directamente la función bloqueante usada antes de esa creación.
+
+### 20.4 Evidencia técnica ejecutada
+
+| Comando o prueba | Resultado |
+|---|---|
+| `node --test tests/employee-evaluations/*.test.js` | **32 aprobadas, 0 fallidas, 1 omitida**. La omitida es la integración PostgreSQL protegida cuando no se define la URL explícita. |
+| Integración PostgreSQL con `P2_3_DATABASE_URL` local desechable | **1/1 aprobada**; Prisma persistió `28,0` y mantuvo pesos/respuestas sin cambios. |
+| API `npm run type-check` | **Aprobada**. |
+| API `npm run build` | **Aprobada**. |
+| React `npm run typecheck` | **Aprobada**. |
+| React `npm run build` | **Aprobada**; solo avisos informativos por metadatos de navegadores desactualizados. |
+| `npx eslint src/modules/employee-evaluations/evaluations/hooks/useEvaluationForm.ts` | **Aprobado**. |
+| Sesión React contra API sintético | **Aprobada**: inmediato `28,0`, autoguardado `28,0`, finalización `28,0`, reapertura `28,0`. |
+
+### 20.5 Archivos de validación P2.3
+
+- `api/tests/employee-evaluations/weighted-score.test.js`: matriz explícita de publicación ampliada.
+- `api/tests/employee-evaluations/weighted-score.postgres.integration.test.js`: prueba Prisma/PostgreSQL protegida para una base local desechable con nombre exacto.
+- `api/tests/employee-evaluations/weighted-score.ui-mock.mjs`: API sintético usado para la sesión React, sin notificaciones ni persistencia real.
+- `evaluaciones-docs/docs/mejoras/MEJ-002-calculo-puntuaciones.md`.
+- `evaluaciones-docs/docs/mejoras/MEJ-002-plan-ponderacion-grupos.md`.
+
+No se modificó código productivo durante P2.3. No se detectaron discrepancias funcionales que requieran corrección.
+
+### 20.6 Pendientes y criterio de cierre
+
+La implementación y la validación técnica de P2 pueden considerarse terminadas. Para el **cierre operativo total** falta una única comprobación en un ambiente autorizado:
+
+1. obtener una conexión identificada de solo lectura a la base que contiene el periodo 2025;
+2. seleccionar una muestra de evaluaciones `COMPLETED` y registrar `id`, `status`, `score` y modo del snapshot sin exponer datos personales;
+3. abrir las mismas evaluaciones con un usuario autorizado y confirmar que React muestra el `score` almacenado;
+4. comparar conteos y hashes/valores de control antes y después para demostrar que no cambiaron scores, respuestas ni snapshots.
+
+Hasta completar esa evidencia, P2 queda **cerrado técnicamente pero pendiente de aprobación operativa del histórico 2025**. La reconciliación del historial de migraciones Prisma continúa siendo una tarea de despliegue separada; P2.3 no ejecutó ni marcó migraciones como aplicadas.
+
