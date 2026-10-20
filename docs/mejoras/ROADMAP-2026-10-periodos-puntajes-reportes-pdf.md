@@ -111,6 +111,14 @@ Las preguntas sin respuesta cuentan en el máximo del periodo; no hay peso por g
 
 **Evidencia a revisar en P2 (2026-10-16):** la vista histórica 2025 muestra porcentajes integrados en los nombres de grupos, por ejemplo Calidad (10%), Actitud (15%), Innovación y Comunicaciones (5%) y Planeación (15%). Determinar si son texto descriptivo o ponderaciones requeridas; no cambiar cálculo ni datos históricos sin aprobar fórmula y alcance de corrección.
 
+### Actualización de alcance P2 — 2026-10-20
+
+El responsable decidió **no corregir ni recalcular puntajes históricos ahora**, incluyendo 2025; cualquier ajuste de valores persistidos será un proceso futuro independiente. El trabajo actual de P2 es incorporar **peso numérico por grupo** y posteriormente ajustar el cálculo únicamente para periodos nuevos, **sin refactoring**.
+
+Orden acotado: **P2.1** modelo/catálogo/formulario/snapshot de peso (sin ejecutar migraciones productivas ni recalcular score); **P2.2** verificar fórmula del Excel HF-011 Rev9 y ajustar puntaje ponderado en Node y React para nuevos periodos con distinción explícita frente a legacy; **P2.3** pruebas y cierre. La suma visible de pesos de los ocho grupos es 100 %, pero resta verificar la fórmula interna del Excel y decidir tratamiento de grupos sin preguntas o sin peso.
+
+Ver [MEJ-002 — Plan de ponderación por grupos](MEJ-002-plan-ponderacion-grupos.md).
+
 ## 5. P3 / MEJ-003 — Reporte de seguimiento por periodo
 
 ### Problema y evidencia
