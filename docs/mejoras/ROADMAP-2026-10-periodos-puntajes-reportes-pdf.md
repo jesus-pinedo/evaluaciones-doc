@@ -129,7 +129,7 @@ Ver [MEJ-002 — Plan de ponderación por grupos](MEJ-002-plan-ponderacion-grupo
 
 **Diferencia aprobada frente al Excel:** pesos explícitos `20/10/10/5/15/5/15/20`; el promedio de la celda `P27` del Excel daba `10/10/10/10` como pesos efectivos para Cultura Organizacional. Caso discriminante documentado: software **28 %** vs Excel **36 %**.
 
-**P2.3 pendiente:** comprobar flujo completo de publicación/evaluación en un entorno aislado, contraste visual React-API-DB, autoguardado, periodos LEGACY, protecciones de histórico y bloqueo de configuración inválida. No recalcular scores históricos ni ejecutar `prisma migrate deploy` hasta reconciliar el historial `P3005`. Ver [MEJ-002 §19](MEJ-002-calculo-puntuaciones.md#19-implementación-p22--cálculo-ponderado-2026-10-20).
+**P2.3 validado técnicamente (2026-10-20):** 32 pruebas Node aprobadas, 1/1 prueba Prisma/PostgreSQL en contenedor aislado aprobada, y flujo React con API sintética confirmó 20,0 → 28,0 %, autoguardado, finalización y reapertura con score persistido. Los rechazos de publicación fueron comprobados mediante la función bloqueante, sin publicar periodos reales. **P2 se considera cerrado técnicamente**, con **único pendiente de validación operativa:** comparar una muestra real de `COMPLETED` 2025 mediante acceso autorizado y de solo lectura; sin recálculo ni modificación histórica. No ejecutar `prisma migrate deploy` hasta reconciliar historial `P3005`. Ver [MEJ-002 §20](MEJ-002-calculo-puntuaciones.md#20-p23--validación-funcional-e-integrada-2026-10-20).
 
 ## 5. P3 / MEJ-003 — Reporte de seguimiento por periodo
 
