@@ -607,3 +607,148 @@ No se publicó ningún periodo durante esta implementación.
 
 **Migración pendiente:** `20261020100000_add_group_weight_percentage` está creada pero no ejecutada en ningún ambiente por esta tarea.
 
+## 18. Validación previa P2.2 — plantilla Excel Rev9 (2026-10-20)
+
+### 18.1 Resultado de la inspección
+
+Se inspeccionó en modo de solo lectura el archivo original `HF-011 Evaluación de Desempeño Rev9 (2).xlsx` (SHA-256 `c7bb89b575614a5acac4a442a0a7277ffa2f7f292f9b4eb086c0701df2b91c57`). La fórmula de porcentaje de cada grupo sí divide la suma de sus respuestas entre `cantidad de preguntas × 5`. En la hoja `HF-011`:
+
+- `P13 = SUM(P14:U15) / 10` para Orientación a Resultados;
+- `P16 = SUM(P17+P18+P19+P20+P21) / 25` para Calidad;
+- `P22 = SUM(P23:U26) / 20` para Relaciones Interpersonales;
+- `P28 = SUM(P29:U31) / 15` para Trabajo en Equipo;
+- `P32 = SUM(P33:U35) / 15` para Planeación;
+- `P36 = SUM(P37:U40) / 20` para Innovación y Comunicaciones;
+- `P41 = SUM(P42:U45) / 20` para Actitud;
+- `P46 = SUM(P47:U54) / 40` para Responsabilidades en SST.
+
+Estas celdas están formateadas como porcentaje y conservan el resultado bruto en escala `0–1`; por tanto, son equivalentes a `scoreGrupo = sumaRespuestasGrupo / (numeroPreguntasGrupo × 5) × 100` cuando se expresan en escala `0–100`.
+
+### 18.2 Discrepancia en la ponderación total
+
+Los ocho porcentajes escritos en los rótulos son `20 %, 10 %, 10 %, 5 %, 15 %, 5 %, 15 % y 20 %`, cuya suma es `100 %`. Sin embargo, el total de Excel no aplica directamente esos ocho pesos:
+
+- `P27 = (P28 + P32 + P36 + P41) / 4` calcula un promedio simple de los cuatro subgrupos de Cultura Organizacional;
+- `P55 = (P13 × 0,2) + (P16 × 0,1) + (P22 × 0,1) + (P27 × 0,4) + (P46 × 0,2)`.
+
+Al sustituir `P27` dentro de `P55`, cada subgrupo de Cultura Organizacional tiene un peso efectivo de `10 %`. La distribución efectiva del Excel es, por tanto, `20 %, 10 %, 10 %, 10 %, 10 %, 10 %, 10 % y 20 %`, no la distribución declarada en los rótulos `20 %, 10 %, 10 %, 5 %, 15 %, 5 %, 15 % y 20 %`.
+
+La fórmula solicitada para P2.2, que usa cada `PeriodGroup.weightPercentage`, produciría un resultado distinto del Excel cuando los cuatro subgrupos de Cultura Organizacional tengan resultados diferentes.
+
+### 18.3 Ejemplo numérico de la diferencia
+
+Ejemplo controlado con respuestas válidas en escala `1–5`:
+
+- los cuatro grupos externos a Cultura Organizacional obtienen `20 %`;
+- Trabajo en Equipo e Innovación y Comunicaciones obtienen `100 %`;
+- Planeación y Actitud obtienen `20 %`.
+
+Con los pesos explícitos de los rótulos, el total sería:
+
+`20 % × 60 % + 100 % × 5 % + 20 % × 15 % + 100 % × 5 % + 20 % × 15 % = 28 %`.
+
+Con la fórmula efectiva del Excel, el promedio de Cultura Organizacional es `60 %`, por lo que el total sería:
+
+`20 % × 60 % + 60 % × 40 % = 36 %`.
+
+La diferencia es de `8` puntos porcentuales. El ejemplo diligenciado en el archivo tiene todas las respuestas en `5` y devuelve `100,0 %` con ambas reglas, por lo que ese caso no permite detectar la divergencia por sí solo.
+
+### 18.4 Decisión funcional aprobada
+
+El responsable confirmó que Cultura Organizacional reúne cuatro subgrupos cuyo peso conjunto es `40 %`, pero aprobó para el software los pesos individuales explícitos `5/15/5/15`, no el promedio simple de `P27`. No se implementará una jerarquía ni un grupo padre en PostgreSQL.
+
+La regla aprobada es:
+
+`aporteCultura = scoreTrabajoEquipo × 0,05 + scorePlaneacion × 0,15 + scoreInnovacion × 0,05 + scoreActitud × 0,15`.
+
+El total usa los ocho pesos explícitos `20/10/10/5/15/5/15/20`, almacenados en `PeriodGroup.weightPercentage`. La diferencia frente al Excel queda aceptada y documentada como una decisión funcional deliberada.
+
+## 19. Implementación P2.2 — cálculo ponderado (2026-10-20)
+
+### 19.1 Estado y fórmula final
+
+**Estado:** **Implementado técnicamente y validado mediante pruebas automatizadas; prueba integrada con publicación real pendiente de ambiente autorizado.**
+
+Para cada grupo `g` de un periodo WEIGHTED:
+
+`scoreGrupo_g = sumaRespuestasGrupo_g / (numeroPreguntasGrupo_g × 5) × 100`
+
+`scoreTotal = redondear_1_decimal(Σ(scoreGrupo_g × weightPercentage_g / 100))`
+
+Los subtotales usados en la suma no se redondean. Las preguntas sin responder aportan cero y permanecen en el denominador de su grupo. La escala de respuesta continúa fija en `1–5`. La descripción del grupo no participa en el cálculo.
+
+### 19.2 Distinción LEGACY y WEIGHTED
+
+- **LEGACY:** todos los snapshots `PeriodGroup.weightPercentage` del periodo están en `NULL`. Conserva `suma respuestas / (total preguntas × 5) × 100`.
+- **WEIGHTED:** todos los grupos tienen peso explícito válido, la suma es exactamente `100 %`, toda pregunta pertenece a uno de esos grupos y ningún grupo con peso positivo está vacío.
+- Una mezcla de pesos `NULL` y configurados genera `EVAL_PERIOD_WEIGHT_PARTIAL`; no se interpreta `NULL` como cero.
+- Una suma diferente de `100 %`, peso inválido, pregunta sin grupo o grupo positivo vacío produce un error explícito y no genera un resultado parcial.
+- Las evaluaciones `COMPLETED` con score persistido no ejecutan cálculo durante la consulta. El formulario usa ese valor almacenado, incluido el histórico de 2025.
+
+No se usa fecha, nombre de periodo ni texto de descripción para elegir la fórmula.
+
+### 19.3 Cambios puntuales en Node.js
+
+- `api/src/modules/employee-evaluations/evaluations/evaluationScore.utils.js`: resolución determinista LEGACY/WEIGHTED, validación estructural y cálculo sin redondeo intermedio.
+- `api/src/modules/employee-evaluations/evaluations/evaluations.helper.js`:
+  - `calculateAndSaveScore` carga `PeriodGroup.weightPercentage`, `PeriodQuestion.groupId` y aplica la regla correspondiente;
+  - `formatEvaluationForFrontend` conserva el score persistido de `COMPLETED` y calcula borradores con la misma regla;
+  - cada sección del DTO incluye `weightPercentage: number | null`.
+- `api/src/modules/employee-evaluations/periods/periods.service.js`: la publicación valida los grupos y preguntas globales activos antes de crear snapshots.
+
+Antes de P2.2, publicar comprobaba únicamente que los catálogos globales no estuvieran vacíos. Permitía pesos ausentes o parciales, suma distinta de 100 %, preguntas sin grupo, preguntas asociadas a grupos inactivos y grupos vacíos. Para periodos nuevos, esos casos ahora bloquean la publicación según la regla aprobada. Un grupo vacío con peso `0 %` sigue permitido porque no aporta al resultado.
+
+### 19.4 Cambio puntual en React
+
+`sisproing-app/src/modules/employee-evaluations/evaluations/hooks/useEvaluationForm.ts` consume `weightPercentage` de cada sección y replica la fórmula Node en tiempo real. El cálculo de avance no cambió. Cuando la evaluación está completada, `stats.score` toma `data.meta.score`; después de finalizar correctamente, el valor calculado y aceptado por el backend se conserva en memoria al activar el modo de solo lectura.
+
+La pantalla, las tarjetas de preguntas y la presentación del total permanecen sin rediseño.
+
+### 19.5 Ejemplo numérico aprobado frente al Excel
+
+Con los grupos externos a Cultura Organizacional en `20 %`, Trabajo en Equipo e Innovación en `100 %`, y Planeación y Actitud en `20 %`:
+
+- regla aprobada del software: `20 % × 60 % + 100 % × 5 % + 20 % × 15 % + 100 % × 5 % + 20 % × 15 % = 28 %`;
+- fórmula efectiva del Excel: `20 % × 60 % + promedio(100 %, 20 %, 100 %, 20 %) × 40 % = 36 %`.
+
+La prueba automatizada fija `28 %` como resultado esperado del software y conserva `36 %` únicamente como evidencia de la diferencia deliberadamente aprobada.
+
+### 19.6 Pruebas ejecutadas
+
+Se añadió `api/tests/employee-evaluations/weighted-score.test.js` con cobertura para:
+
+- ocho pesos de referencia y comparación numérica con la fórmula efectiva del Excel;
+- grupos con diferente cantidad de preguntas;
+- mínimo `20 %` y máximo `100 %` de la escala `1–5`;
+- borrador parcialmente respondido;
+- redondeo final a un decimal sin redondeo de subtotales;
+- periodo LEGACY con pesos `NULL`;
+- periodo WEIGHTED válido;
+- pesos parciales, suma distinta de `100 %`, pregunta sin grupo y grupo positivo vacío;
+- grupo vacío permitido únicamente con peso `0 %`;
+- validación obligatoria de pesos para publicación;
+- persistencia desde `calculateAndSaveScore`;
+- evaluación `COMPLETED` de 2025 que conserva su score persistido.
+
+Resultados:
+
+| Validación | Resultado |
+|---|---|
+| `node --test tests/employee-evaluations/*.test.js` | **26/26 aprobadas**; 14 corresponden a P2.2. |
+| API `npm run type-check` | **Aprobada**. |
+| API `npm run build` | **Aprobada**. |
+| React `npm run typecheck` | **Aprobada**. |
+| ESLint dirigido a `useEvaluationForm.ts` | **Aprobado**. El API no dispone de script ni ejecutable ESLint instalado. |
+| React `npm run build` | **Aprobada**; solo avisos informativos de datos de navegadores desactualizados. |
+| `git diff --check` | **Aprobado**. |
+
+### 19.7 Riesgos y verificaciones pendientes
+
+1. Ejecutar una publicación solo en ambiente aislado para comprobar los mensajes de bloqueo y que los ocho pesos copiados sumen `100 %`. No se publicó ningún periodo en esta implementación.
+2. Ejecutar una evaluación controlada de extremo a extremo y comparar Node/React con el caso numérico aprobado. Las pruebas actuales cubren la función Node y la compilación de React, no una sesión integrada con base de datos.
+3. Confirmar operativamente que las columnas aplicadas manualmente existen en todas las bases objetivo antes de desplegar. No se ejecutó ni marcó como aplicada la migración Prisma preparada en P2.1.
+4. Los periodos históricos completamente sin pesos siguen siendo LEGACY. No añadir pesos a snapshots ya publicados, porque eso cambiaría su modo de cálculo.
+5. Una configuración publicada corrupta o parcialmente ponderada se rechaza en lugar de degradarse silenciosamente a LEGACY.
+
+No se ejecutaron migraciones, publicaciones, modificaciones de snapshots, actualizaciones de scores, recálculos históricos, cron jobs, correos ni commits.
+

@@ -1,8 +1,8 @@
 # MEJ-002 — Plan acotado para ponderación por grupos
 
 **Fecha:** 2026-10-20  
-**Estado:** P2.1 implementado y probado funcionalmente según confirmación del responsable; columnas aplicadas manualmente por SQL. P2.2 es el siguiente bloque, sin implementar.
-**Fuente:** auditoría [MEJ-002](MEJ-002-calculo-puntuaciones.md), formulario de grupos compartido por el responsable y plantilla HF-011 Rev9 adjunta al proyecto (sus fórmulas internas aún pendientes de contrastar).
+**Estado:** P2.1 implementado y probado funcionalmente según confirmación del responsable; columnas aplicadas manualmente por SQL. P2.2 implementado técnicamente con regla de ocho pesos explícitos y pruebas automatizadas; validación integrada pendiente.
+**Fuente:** auditoría [MEJ-002](MEJ-002-calculo-puntuaciones.md), formulario de grupos compartido por el responsable y plantilla HF-011 Rev9 inspeccionada en sus fórmulas internas.
 
 ## Decisiones del responsable
 
@@ -76,6 +76,8 @@ Precondiciones: contraste de la fórmula Excel, pesos ya persistidos, política 
 Alcance: modificaciones puntuales a `evaluations.helper.js#calculateAndSaveScore`, `useEvaluationForm.ts#stats` y al DTO de grupos para consumir `weightPercentage`; pruebas numéricas contra una evaluación controlada de la plantilla.
 
 **Invariante obligatorio:** `COMPLETED` históricos no se recalculan ni modifican, y **los valores históricos persistidos se siguen mostrando**, aunque ahora existan nuevos pesos configurados. No se interpreta automáticamente un `NULL` como cero ni como peso extraído de la descripción. Definir una separación explícita LEGACY/WEIGHTED (o mecanismo equivalente simple) para distinguir periodos antiguos de nuevos sin una refactorización general.
+
+**Resultado 2026-10-20:** implementado con los ocho pesos explícitos `20/10/10/5/15/5/15/20`. La inspección del Excel confirmó que sus fórmulas asignan de forma efectiva `10 %` a cada subgrupo de Cultura Organizacional, pero el responsable aprobó deliberadamente usar en el software `5/15/5/15`. Node y React aplican la misma fórmula, la publicación nueva exige configuración ponderada válida y los periodos completamente sin pesos conservan LEGACY. Detalle y pruebas en [MEJ-002, secciones 18 y 19](MEJ-002-calculo-puntuaciones.md#18-validación-previa-p22--plantilla-excel-rev9-2026-10-20).
 
 ### Contrato de cálculo propuesto para P2.2 (sin refactoring)
 
