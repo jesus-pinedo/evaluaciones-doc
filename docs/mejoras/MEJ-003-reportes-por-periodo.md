@@ -314,3 +314,10 @@ Errores (antes ambos endpoints lanzaban `Error` plano sin código/HTTP estructur
 2. **Ambigüedad de "periodo vigente" nunca probada con datos reales.** El desempate determinista para el caso en que `findCurrentPublishedPeriod` reporte ambigüedad es defensivo (no debería ocurrir bajo `RN-C03`); no hay forma de ejercitarlo sin crear periodos solapados de prueba.
 3. **`periodsService.listAll()` trae todos los periodos sin paginar.** Si el número de periodos históricos crece mucho con los años, el selector podría volverse largo; no se agregó paginación ni búsqueda al selector porque no estaba en el alcance de P3.2.
 4. **No se verificó visualmente en navegador** (no se pudo correr `vite build`/`vite dev` en este entorno): la validación quedó en typecheck + eslint + lectura de código. El checklist manual (sección siguiente de este resumen) cubre justamente lo que falta verificar con la app corriendo.
+
+
+## 7. Validación manual del selector — 2026-10-20
+
+El responsable del proyecto probó el **filtro/selector de periodo del dashboard** en su entorno y reportó: **«funciona perfecto el filtro»**. Se registra como **validación manual satisfactoria del flujo principal de selección de periodo**, no como comprobación independiente del código o evidencia de todos los casos del checklist P3.2.
+
+**Estado:** P3.2 implementado y selector principal validado por el responsable. Para cierre funcional completo de P3 siguen sin constancia individual de verificación: consistencia del `periodId` en el detalle del evaluador; alternancia rápida sin respuestas obsoletas; estados vacío/errores 400/404 y encabezados ACTIVE/FINISHED/SCHEDULED; además de las pruebas automatizadas que el entorno de Claude no permitió ejecutar. No se modificó código ni datos por este registro. Mantener P1/P2 y los scores históricos intactos.
