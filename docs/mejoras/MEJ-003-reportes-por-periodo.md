@@ -178,3 +178,32 @@ Con el diseño propuesto (cambio de estado de React que dispara un nuevo `useEff
 ## 5. Lo que esta auditoría NO hizo
 
 De acuerdo con las restricciones del encargo: no se modificó código de `api/` ni de `sisproing-app/`; no se tocaron cálculos de P2, respuestas, evaluaciones, periodos, snapshots, PDF ni notificaciones; no se auditaron otros módulos de PROING; no se generaron commits.
+
+
+## 6. Decisiones funcionales aprobadas para P3.2 — 2026-10-20
+
+El responsable del proyecto **aprobó expresamente** las ocho reglas propuestas para implementar el selector de periodos del dashboard. Esta aprobación aplica exclusivamente a P3.2, no autoriza refactoring ni modificaciones en P1/P2.
+
+| # | Tema | Regla aprobada |
+|---|---|---|
+| 1 | Periodo predeterminado | Priorizar el **periodo publicado vigente por fecha** (días calendario de Bogotá), utilizando el criterio existente de P1; cuando no exista, seleccionar el **periodo publicado más reciente** mediante orden determinista (por ejemplo `startDate DESC, id DESC`). Sin periodos publicados: estado vacío explícito. |
+| 2 | `periodId` inválido o inexistente | Validar sintaxis del parámetro (400 cuando sea inválido) y devolver **404** cuando el identificador no exista; **nunca sustituirlo silenciosamente por otro periodo**. |
+| 3 | Periodo `DRAFT` | No mostrarlo en el selector y rechazar consultas de reportes para ese `periodId` (404 coherente con el acceso a periodos publicados). |
+| 4 | Periodo publicado sin evaluaciones | Mostrar **«Este periodo aún no tiene evaluaciones registradas»**; diferenciarlo de una falla HTTP o de carga. |
+| 5 | Encabezado/cierre | `ACTIVE`: fecha de cierre y días restantes; `FINISHED`: fecha de finalización sin «quedan N días»; `SCHEDULED`: fecha de inicio, sin simular campaña vigente. |
+| 6 | Drill-down | **Cerrar `EvaluatorDetailModal` al cambiar de periodo**, y en cualquier caso enviar al endpoint del modal el mismo `periodId` seleccionado. |
+| 7 | Filtros de proyecto y centro de costo | Permanecen deshabilitados; no se implementan en P3.2. |
+| 8 | Indicadores | Se mantienen únicamente los KPI/gráficas/tablas **operativos** existentes; no incluir score, `ratingLabel` ni métricas de desempeño. |
+
+### Contrato mínimo de implementación autorizado
+
+- Reutilizar `GET /api/employee-evaluations/periods` para cargar el selector, filtrando periodos publicados sin alterar P1.
+- Extender **los dos endpoints existentes** `GET /api/employee-evaluations/reports/dashboard-progress` y `GET /api/employee-evaluations/reports/evaluations` para recibir `periodId` explícito, con resolución determinista compartida en la medida mínima necesaria dentro de reportes. No crear endpoints nuevos.
+- Mantener el `periodId` seleccionado en `EvaluationDashboardPage.tsx` y propagarlo a `report.service.ts` y a `EvaluatorDetailModal`, sin que el modal elija otro periodo por su cuenta.
+- Evitar mostrar datos de periodos diferentes cuando las solicitudes se solapan: limpiar el estado anterior, mostrar loading y descartar respuestas obsoletas (cancelación o identificador de solicitud).
+- Preservar paginación, búsqueda, estados, KPIs y el comportamiento actual de los reportes salvo la selección explícita de periodo y el ajuste de encabezados/estados vacíos.
+- Pruebas dirigidas de selección inicial, alternancia 2025/otro periodo, detalle consistente, 400/404, borradores, periodo sin evaluaciones, tres estados de periodo y respuesta obsoleta.
+- **No modificar** fórmula de P2, `score`, `ratingLabel`, evaluaciones, snapshots, periodos, PDFs, notificaciones ni otros módulos. Sin migraciones ni recálculos históricos.
+- Documentar cambios y resultados en este archivo; no generar commits automáticamente.
+
+**Estado:** decisión aprobada; **implementación P3.2 pendiente de Claude/Codex**.
