@@ -207,3 +207,110 @@ El responsable del proyecto **aprobó expresamente** las ocho reglas propuestas 
 - Documentar cambios y resultados en este archivo; no generar commits automáticamente.
 
 **Estado:** decisión aprobada; **implementación P3.2 pendiente de Claude/Codex**.
+
+
+## 6. Implementación — P3.2 (2026-10-20)
+
+**Estado:** implementado según las decisiones funcionales aprobadas arriba (sección "Decisiones funcionales pendientes" queda resuelta por esas decisiones). No se tocó P1 ni P2; no se generaron commits ni se ejecutaron migraciones.
+
+### 6.1 Archivos modificados
+
+Backend (`api/src/modules/employee-evaluations/reports/`):
+- `reports.service.js`
+- `reports.controller.js`
+
+Frontend (`sisproing-app/src/modules/employee-evaluations/reports/`):
+- `pages/EvaluationDashboardPage.tsx`
+- `components/DashboardFilters.tsx`
+- `components/EvaluatorDetailModal.tsx`
+- `services/report.service.ts`
+- `types/reportTypes.ts`
+- `context/ReportPeriodContext.ts` **(archivo nuevo, ver nota)**
+
+**Nota sobre el archivo nuevo:** el encargo listó cinco archivos de frontend a modificar, pero no `EvaluatorTable.tsx`, que es quien efectivamente renderiza `EvaluatorDetailModal` y le pasa sus props. Para (a) propagar el `periodId` seleccionado al modal y (b) cerrarlo automáticamente al cambiar de periodo, sin tocar `EvaluatorTable.tsx`, se introdujo un React Context mínimo de una sola línea de superficie (`ReportPeriodContext`, un `createContext<number | null>(null)`). `EvaluationDashboardPage.tsx` lo provee (`<ReportPeriodContext.Provider value={selectedPeriodId}>` envolviendo el contenido del dashboard) y `EvaluatorDetailModal.tsx` lo consume con `useContext`. Ningún otro archivo fuera de la lista original fue tocado.
+
+No se modificaron `EvaluatorTable.tsx`, `KPICards.tsx`, `Charts.tsx`, `DashboardSkeleton.tsx`, `ReportsPage.tsx` (placeholder muerto) ni ningún archivo de `periods/` (ni backend ni frontend): solo se **importan** tipos y funciones ya exportados por P1 (`findCurrentPublishedPeriod`, `calculateRemainingBogotaDays`, `getBogotaDateOnly`, `toPrismaDateOnly` del backend; `periodsService.listAll()` y el tipo `PeriodDto` del frontend), sin cambiar su comportamiento.
+
+### 6.2 Contratos de endpoint (cambios)
+
+Ambos endpoints existentes aceptan ahora `periodId` opcional por query string; ningún endpoint nuevo.
+
+`GET /api/employee-evaluations/reports/dashboard-progress?periodId=<id>`
+`GET /api/employee-evaluations/reports/evaluations?page=&limit=&status=&evaluatorId=&search=&periodId=<id>`
+
+Nueva forma de la respuesta de `dashboard-progress` (antes `period` nunca era `null` y no existía `hasEvaluations`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "period": {
+      "id": 7,
+      "name": "Evaluaciones 2026",
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-11",
+      "status": "ACTIVE",
+      "remainingDays": 4
+    },
+    "hasEvaluations": true,
+    "globalStats": { "totalEmployees": 0, "completed": 0, "inProgress": 0, "pending": 0, "accepted": 0 },
+    "evaluators": [],
+    "projects": []
+  }
+}
+```
+
+- `period: null` → no existe ningún periodo publicado (estado vacío, no es un error).
+- `period` presente + `hasEvaluations: false` → el periodo está publicado pero aún no tiene evaluaciones generadas.
+- `remainingDays` solo tiene valor cuando `status === 'ACTIVE'`; en `FINISHED`/`SCHEDULED` es `null` (el frontend muestra fecha de finalización o de inicio en su lugar, no días restantes).
+- `startDate` se agregó al objeto `period` (antes solo existía `endDate`).
+
+Errores (antes ambos endpoints lanzaban `Error` plano sin código/HTTP estructurado cuando no había periodo activo; ahora):
+- **400** `EVAL_REPORT_INVALID_PERIOD_ID` — `periodId` no es un entero positivo.
+- **404** `EVAL_REPORT_PERIOD_NOT_FOUND` — el `periodId` no existe o corresponde a un periodo `DRAFT` (no publicado).
+- Nunca se sustituye silenciosamente el `periodId` pedido por otro periodo.
+
+### 6.3 Selección predeterminada implementada (sin `periodId`)
+
+`resolveDefaultPublishedPeriod()` en `reports.service.js`:
+1. Reutiliza `findCurrentPublishedPeriod()` (P1, sin modificar) para el periodo vigente por fecha de Bogotá.
+2. Si esa función reporta ambigüedad (`EVAL_PERIOD_CURRENT_AMBIGUOUS`, caso defensivo que no debería ocurrir bajo `RN-C03` pero que la función ya contempla), este módulo —sin alterar `findCurrentPublishedPeriod`— desempata de forma determinista entre los candidatos que ella identificó (`startDate desc, id desc`).
+3. Si no hay periodo vigente por fecha, usa el publicado más reciente (`isActive=true`, `startDate desc, id desc`).
+4. Si no hay ningún periodo publicado, retorna `null` → el dashboard muestra el estado vacío "No hay periodos publicados disponibles para consultar.", no un error.
+
+### 6.4 Selector de periodo (frontend)
+
+- `DashboardFilters.tsx` agrega un `<select>` funcional poblado con `periodsService.listAll()` (ya existente, sin endpoint nuevo), filtrado para excluir `DRAFT` en el cliente (`p.status !== 'DRAFT'`). Los dos `<select>` de proyecto/centro de costo siguen deshabilitados, sin cambios.
+- La carga inicial del dashboard se hace **sin** `periodId` explícito; el backend aplica la selección predeterminada (6.3) y la página fija `selectedPeriodId` a partir de `reportData.period.id` una vez llega la respuesta — una sola fuente de verdad para "cuál es el periodo por defecto", sin duplicar esa regla en el frontend.
+- Cambiar el selector dispara `fetchDashboard(periodId)` con el id explícito.
+- **Carrera de respuestas:** `EvaluationDashboardPage.tsx` usa un contador (`requestSeq`) incrementado en cada llamada; una respuesta o error cuya secuencia ya no es la vigente se descarta silenciosamente, de modo que una respuesta lenta de un periodo anterior nunca sobrescribe los datos del periodo seleccionado después.
+
+### 6.5 Errores y estados vacíos (frontend)
+
+- Error de carga (400/404/otro): se mantiene visible el selector de periodo (para poder corregir) y se muestra un mensaje distinto según el código HTTP, sin inventar datos ni cambiar de periodo solo.
+- `period === null`: tarjeta "No hay periodos publicados disponibles para consultar."
+- `period` presente y `hasEvaluations === false`: banner "Este periodo aún no tiene evaluaciones registradas.", y de todas formas se muestran KPIs/gráficas/tabla (en cero), conservando los componentes existentes tal como pedía el encargo.
+- Encabezado (`DashboardFilters`) según `period.status`: `ACTIVE` → "Cierre: fecha (Quedan N días)"; `FINISHED` → "Periodo finalizado: fecha"; `SCHEDULED` → "Periodo programado — inicia: fecha". Nunca se muestran días restantes para un periodo histórico o programado.
+
+### 6.6 Detalle de evaluador (modal)
+
+- `EvaluatorDetailModal.tsx` obtiene el `periodId` activo vía `ReportPeriodContext` y lo agrega a los parámetros de `GET /reports/evaluations`, de modo que el drill-down siempre consulta el mismo periodo que el dashboard de fondo.
+- Un `useEffect` separado detecta cambios de `periodId` (comparando contra un `ref` con el valor anterior): si el modal está abierto cuando el periodo cambia, limpia sus datos y llama a `onClose()` automáticamente. Si está cerrado, no hace nada (no interfiere con el flujo normal de apertura/cierre del usuario).
+- Al volver a abrirse para cualquier evaluador, siempre usa el `periodId` vigente en ese momento (lectura directa del contexto en cada `fetchDetails()`).
+
+### 6.7 Verificación realizada
+
+- `node --check` sobre `reports.service.js` y `reports.controller.js`: sin errores de sintaxis.
+- `npx tsc -b` (typecheck completo del proyecto `sisproing-app`, no solo los archivos tocados): **sin errores**.
+- `npx eslint src/modules/employee-evaluations/reports`: 2 errores, ambos preexistentes y ajenos a esta mejora (`Charts.tsx` no tocado, y el `useState<any[]>` de `EvaluatorDetailModal.tsx` que ya existía en el archivo original). Ningún error nuevo introducido.
+- **No se pudo ejecutar la suite Jest del backend** (`npm test`): el entorno de este contenedor tiene una incompatibilidad preexistente entre la versión instalada de `jest-circus` y la resolución de `exports` de Node (`ERR_PACKAGE_PATH_NOT_EXPORTED` al resolver `jest-circus/build/runner.js`), que afecta a **todos** los tests del repo (incluidos los ya existentes en `tests/employee-evaluations/*`, no solo los de reportes), no es causada por este cambio y está fuera del alcance de esta mejora corregir.
+- **No se pudo ejecutar `npx vite build`** (bundling de producción del frontend): falta el binario opcional `@rollup/rollup-linux-arm64-gnu` en `node_modules` (bug conocido de npm con dependencias opcionales por arquitectura), preexistente y no relacionado con este cambio.
+- No se escribieron pruebas automatizadas nuevas para `reports.service.js` porque la suite Jest no es ejecutable en este entorno para verificarlas; en su lugar, la lógica nueva (resolución de periodo, derivación de estado, códigos de error) se revisó manualmente contra cada decisión aprobada y queda cubierta por el checklist manual de la sección 6.8.
+- No se crearon commits ni se ejecutaron migraciones de base de datos.
+
+### 6.8 Riesgos y verificación manual pendiente
+
+1. **Sin cobertura automatizada propia.** Por la limitación del entorno de pruebas (6.7), la resolución de periodo por defecto, los códigos 400/404 y el estado vacío no tienen un test automatizado que corra en CI todavía; quedan cubiertos solo por el checklist manual entregado junto con este resumen. Se recomienda, cuando el entorno de Jest se repare, agregar un test dirigido a `reportsService.getDashboardProgress`/`getEvaluationsList` (mockeando Prisma) para los casos de la sección 6.3 y los errores 400/404.
+2. **Ambigüedad de "periodo vigente" nunca probada con datos reales.** El desempate determinista para el caso en que `findCurrentPublishedPeriod` reporte ambigüedad es defensivo (no debería ocurrir bajo `RN-C03`); no hay forma de ejercitarlo sin crear periodos solapados de prueba.
+3. **`periodsService.listAll()` trae todos los periodos sin paginar.** Si el número de periodos históricos crece mucho con los años, el selector podría volverse largo; no se agregó paginación ni búsqueda al selector porque no estaba en el alcance de P3.2.
+4. **No se verificó visualmente en navegador** (no se pudo correr `vite build`/`vite dev` en este entorno): la validación quedó en typecheck + eslint + lectura de código. El checklist manual (sección siguiente de este resumen) cubre justamente lo que falta verificar con la app corriendo.
