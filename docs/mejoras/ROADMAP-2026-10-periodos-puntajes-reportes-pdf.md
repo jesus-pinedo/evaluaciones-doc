@@ -165,6 +165,10 @@ Componentes candidatos:
 
 **Validación:** typecheck React y sintaxis Node aprobados. Jest de backend y build Vite no ejecutables en el entorno de Claude por problemas preexistentes; ESLint dirigido informó dos incidencias previas. **P3.2 aún requiere validación manual en navegador y API con periodos reales autorizados antes del cierre funcional**: histórico 2025, default vigente o último publicado, estados vacíos, 400/404, alternancia rápida, sincronía del detalle y controles deshabilitados. No se modificaron P1, P2, cálculos, datos históricos, PDFs ni notificaciones.
 
+### Validación manual del selector — 2026-10-20
+
+El responsable confirmó que **el filtro de periodo del dashboard funciona correctamente** en su entorno. Se considera validado el flujo principal de selección de periodo. **No se presume verificación completa** de casos de error 400/404, estados sin datos, cambios rápidos y sincronización `periodId` del detalle de evaluador. P3 sigue pendiente de cierre funcional integral; no se alteraron datos ni se recalcularon scores.
+
 ## 6. P4 / MEJ-004 — Descargar PDF individual
 
 ### Evidencia actual
