@@ -113,6 +113,8 @@ Las preguntas sin respuesta cuentan en el máximo del periodo; no hay peso por g
 
 **Avance P2.1 (2026-10-20):** Codex reportó la persistencia nullable `weightPercentage` en `QuestionGroup`/`PeriodGroup`, migración SQL preparada sin ejecutar, CRUD y formulario React ajustados, copia del peso a snapshots nuevos y 12/12 pruebas técnicas aprobadas. **Pendiente:** aplicar migración solo en ambiente autorizado, verificar tablas/constraints y ejecutar checklist integrado. **No se han modificado puntajes ni snapshots históricos y P2.2 aún no está implementado.** Ver [MEJ-002, sección 17](MEJ-002-calculo-puntuaciones.md#17-implementación-p21--persistencia-y-edición-del-peso-2026-10-20).
 
+**Validación posterior de P2.1 (2026-10-20):** el responsable confirmó pruebas satisfactorias y aplicación de las columnas mediante SQL manual en PostgreSQL. La historia de Prisma sigue sin reconciliarse (P3005; migraciones anteriores pendientes), por lo que no corresponde ejecutar `migrate deploy` hasta resolverlo. **P2.2 pasa a siguiente bloque**, sujeto a verificar fórmula exacta del Excel y a preservar scores `COMPLETED` del histórico. Ver [plan P2](MEJ-002-plan-ponderacion-grupos.md).
+
 ### Actualización de alcance P2 — 2026-10-20
 
 El responsable decidió **no corregir ni recalcular puntajes históricos ahora**, incluyendo 2025; cualquier ajuste de valores persistidos será un proceso futuro independiente. El trabajo actual de P2 es incorporar **peso numérico por grupo** y posteriormente ajustar el cálculo únicamente para periodos nuevos, **sin refactoring**.
