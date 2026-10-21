@@ -410,3 +410,14 @@ Se entregó el SQL **`MEJ-006-PRODUCCION-00-esquema-pesos-grupos.sql`** para apl
 **Control funcional y documental pendiente:** verificar reporte/PDF de muestra 8120 en producción; conservar el PDF originalmente aceptado separado de la versión rectificada, sin considerar el acuse original como aceptación del nuevo puntaje. Aprobar registro y comunicación con Gestión Humana para las 42 reclasificaciones y 405 evaluaciones con acuse cuyo puntaje varió. Mantener resguardo externo del backup antes de considerar la tarea cerrada.
 
 **Estado:** **ACTUALIZACIÓN PRODUCTIVA REPORTADA; contraste post-update de score/estado/acuse OK con cero discrepancias; integridad completa de huellas y PDF pendiente de evidencia en este hilo.**
+
+
+## 15. Desajuste visual en producción tras rectificación — evaluación 8120 (2026-10-21)
+
+**Nueva evidencia:** tras ejecutar el SQL MEJ-006 en producción (consulta `03-VERIFICAR.sql` con `discrepancias_post_update=0`), el usuario abrió la ruta de producción de evaluación **8120** y el encabezado de la página `sisproing-app` **mostró 61,8 %**, el valor LEGACY original, en lugar del valor corregido esperado **61,4 %**. La captura no demuestra que la DB haya vuelto a 61,8; demuestra una discrepancia en la **capa de lectura/presentación** que bloquea el cierre funcional.
+
+**Pista técnica documentada:** P2.2 sección 19.4 en `MEJ-002-calculo-puntuaciones.md` implementó que `useEvaluationForm.ts#stats.score` use `data.meta.score` para evaluaciones `COMPLETED`. Antes de P2.2 la UI calculaba el puntaje desde las respuestas, lo cual puede producir 61,8 en snapshots 2025 con `weight_percentage=NULL`. Hipótesis prioritarias a contrastar: `sisproing-app` de producción sin build P2.2, caché de assets, una pantalla alternativa que recalcula, o API que resuelve score antiguo/base distinta. No asumir una hipótesis sin capturar la respuesta real del endpoint.
+
+**Diagnóstico en orden y solo lectura:** (1) `SELECT id,period_id,status,score,rating_label FROM evaluation.evaluations WHERE id=8120 AND period_id=6` en BD productiva; (2) Network en la pantalla del empleado → inspeccionar respuesta JSON de detalle `meta.score` y `meta.status`; (3) si `meta.score=61.4` pero el encabezado 61.8, auditar bundle desplegado del hook `useEvaluationForm` y la fuente efectiva del badge `StickyHeader`; (4) si la API responde 61.8, verificar conexión real de la API, DTO y cualquier caché, comparando conexión con el servidor donde se aplicó SQL; (5) comparar también PDF de control, preservando originales.
+
+**No ejecutar nuevamente `02-APLICAR.sql` ni mutar snapshots con pesos NULL**. El problema visual no autoriza otras escrituras. Cierre de MEJ-006 en producción permanece **PENDIENTE DE VALIDACIÓN FUNCIONAL DEL HISTÓRICO**, aunque los controles SQL hayan pasado.
