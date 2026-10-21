@@ -249,6 +249,10 @@ El responsable solicitó documentar y **aplazar** hasta el final el recálculo d
 
 El responsable retomó la corrección de las calificaciones históricas del periodo 2025. **Primer bloque autorizado: auditoría + simulación de solo lectura; ninguna actualización de base todavía**. Usar mapeo validado de IDs de los ocho grupos a pesos explícitos P2 sin modificar los `PeriodGroup.weightPercentage=NULL` de LEGACY. Reconciliar las respuestas, puntajes y `ratingLabel` por evaluación; generar CSV de diferencias y controlar el caso 8120 (61,8 % → 61,4 %). Cualquier `UPDATE` requiere aprobación posterior, backup/auditoría y decisión sobre PDFs con acuse digital. Ver [MEJ-006](MEJ-006-recalculo-historico-2025.md).
 
+### Avance MEJ-006.1 — dry-run implementado (2026-10-21)
+
+Codex implementó el simulador estrictamente de solo lectura `api/scripts/mej-006-dry-run-2025.mjs`, `mej006DryRun.utils.js` y pruebas. Reportó **38 pruebas aprobadas, 0 fallidas, 1 integración PostgreSQL omitida**, control sintético 8120 **61,8 % → 61,4 %**, y exportación CSV/JSON. **No ejecutó el análisis de 2025 real** porque no había conexión autorizada `MEJ006_READONLY_DATABASE_URL`; permanecen sin comprobar `periodId`, IDs snapshot, conteos y diferencias reales. Próximo paso: acceso PostgreSQL con rol solo lectura → inventario del periodo → mapa de 8 IDs validado → ejecutar dry-run → revisar resultados y política documental antes de aprobar cualquier escritura. No convertir snapshots LEGACY en WEIGHTED ni modificar scores aún. Referencia: [MEJ-006, sección 7](MEJ-006-recalculo-historico-2025.md#7-mej-0061--implementación-del-dry-run-de-solo-lectura-2026-10-21).
+
 ## 9. Fuentes de referencia
 
 - [Contexto funcional](../funcional/contexto-funcional.md)
