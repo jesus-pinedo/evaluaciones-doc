@@ -329,3 +329,25 @@ No se ejecutaron SQL UPDATE, modificaciones de snapshots, correos, acuses ni mig
 **Artefacto generado:** `MEJ-006-conciliacion-Excel-manual-vs-JSON-periodo-6.xlsx` con hojas `Resumen`, `Conciliacion`, `Nueve corregidos`, `Grupos y pesos`, `Metodo`. Incluye 1.399 evaluaciones completadas, sin cédulas ni nombres para minimizar exposición. Los cálculos de diferencia quedan como fórmulas en el reporte.
 
 **Siguiente control:** ejecutar el **dry-run oficial de Codex** con mapa de IDs 45–52 y obtener CSV/JSON de exclusiones, especialmente escala `60` solapada y hueco `80,1–80,9`. Para conciliación individual definitiva, Codex debe añadir, en modo solo lectura, un cruce local seguro con `CEDULA` del Excel contra los campos de identidad de `Employee`, sin transmitir ni registrar datos personales innecesarios y sin alterar las validaciones del simulador. No se ha autorizado ningún SQL UPDATE.
+
+
+## 11. SQL transaccional de corrección preparado para pruebas (2026-10-21)
+
+**Autorización vigente:** el responsable solicitó generar el SQL para ejecutarlo **primero sobre la copia de pruebas**, verificar allí con nuevo inventario JSON y considerar después producción. No se ejecutó SQL sobre ninguna base desde ChatGPT. La conexión de solo lectura se mantiene para auditoría; el SQL correctivo requiere un rol separado con permisos de escritura.
+
+Se generaron cuatro artefactos descargables en esta conversación, usando el inventario real `mej-006-period-6-inventory.json` con timestamp `2026-10-21T22:17:22.778Z`:
+
+- `MEJ-006-periodo-6-01-PREVALIDACION.sql`: transacción y tablas temporales; recalcula todos los puntajes desde PostgreSQL y compara scores, labels, flags, grupos, 33 preguntas, huellas MD5 de respuestas y conteos, finaliza con `ROLLBACK`.
+- `MEJ-006-periodo-6-02-APLICAR.sql`: mismos controles; crea backup persistente `evaluation.mej006_backup_period6_v1` para las **1.399** completadas y aplica un `UPDATE ... FROM` solo a las filas cambiadas, con chequeo posterior y `COMMIT`.
+- `MEJ-006-periodo-6-03-VERIFICAR.sql`: coteja todos los 1.399 valores actualizados, acuses, datos de la evaluación y huellas de respuestas con el respaldo.
+- `MEJ-006-periodo-6-04-REVERTIR.sql`: restitución transaccional de `score` y `rating_label` originales desde backup, solo si el estado actual sigue idéntico al nuevo plan aprobado.
+
+**Resultados previstos de la matriz local:** **1.399** completadas; **1.206** cambian `score`; **193** sin cambios de score; **42** cambian `rating_label`; **405** con `notification_received=true` cuyo score cambia. Caso `8120: 61,8 → 61,4`. Los **9 puntajes manuales** están incluidos con comprobación de preimagen exacta, no se tratan como corrupción. Estos números deben verificarse mediante la prevalidación conectada.
+
+**Decisión provisional sobre clasificación a validar en pruebas y aprobar antes de producción:** usar continuidad del etiquetado histórico observado: `[20,41)` deficiente, `[41,60)` bajo, `[60,81)` bueno y `[81,100]` sobresaliente. Con ello **60 = bueno** (como los scores existentes) y **80,1–80,9 = bueno**, sin modificar los límites snapshot `PeriodScoreScale`; los 42 cambios se derivan de esa regla. El origen almacena intervalos solapados/huecos; **es imprescindible aprobar explícitamente esta normalización antes de producción**. Los nuevos labels son las descripciones existentes del snapshot.
+
+**Precaución producción:** la base de pruebas es una copia anterior a producción. Los SQL contienen los 1.399 IDs, preimágenes de score/label/acuse/isActive, hash de respuestas y el inventario de preguntas/grupos; si un solo caso difiere en producción, **el script aborta, no se deben eliminar validaciones ni forzar los registros**. Reauditar contra producción con conexión solo lectura, tomar backup y preservar evidencia de PDF/acuse originales antes de dar autorización final. `mej-006-dry-run-2025.mjs` excluye nueve scores corregidos manualmente y valores fuera de rango histórico; tras UPDATE su validación LEGACY excluirá la mayoría. Usar `--inventory-only` y `03-VERIFICAR.sql` para cotejo posterior, no interpretar el dry-run LEGACY posactualización como prueba de regresión válida.
+
+**SHA256 artefactos:** PRE `cc1fa0eb986b23b3d15aec3adf77b69bc9f066c32bcfd88c4868cabe7e3c2080`; APLICAR `251c0b714f95a92d52999076a654f7ee91441c335d288f02d50e679caa1bb967`; VERIFICAR `b3925f6971c32635fa24649be4be3c0db92670a6b62e0ce26ac371ce06517626`; REVERTIR `8cbc00b6c6b2d557a72557da36bc2e284119b8a37e91a644c527e48954144308`.
+
+**Pendiente:** validar SQL ejecutándolo realmente en PostgreSQL de pruebas, confirmar que los nombres físicos de columnas son correctos, inventario posterior, decisión sobre clasificación y PDFs antes de producción.
