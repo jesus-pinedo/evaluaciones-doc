@@ -245,6 +245,10 @@ La captura del evaluador muestra un periodo vigente **20/oct/2026–08/nov/2026*
 
 El responsable solicitó documentar y **aplazar** hasta el final el recálculo de evaluaciones completadas de 2025 con pesos explícitos P2. No rellenar `weight_percentage` de snapshots LEGACY como método rápido. Futuro: auditoría de solo lectura → `dry-run` con informe de diferencias → respaldo/trazabilidad de puntajes y PDFs con acuse → aprobación explícita → corrección controlada. Caso testigo evaluación 8120: **61,8 % LEGACY → 61,4 % ponderado**. **Sin SQL de actualización ni cambios de datos ahora.** Documento: [MEJ-006 — Recalculo histórico](MEJ-006-recalculo-historico-2025.md).
 
+### Reactivación de MEJ-006 — dry-run histórico 2025 (2026-10-21)
+
+El responsable retomó la corrección de las calificaciones históricas del periodo 2025. **Primer bloque autorizado: auditoría + simulación de solo lectura; ninguna actualización de base todavía**. Usar mapeo validado de IDs de los ocho grupos a pesos explícitos P2 sin modificar los `PeriodGroup.weightPercentage=NULL` de LEGACY. Reconciliar las respuestas, puntajes y `ratingLabel` por evaluación; generar CSV de diferencias y controlar el caso 8120 (61,8 % → 61,4 %). Cualquier `UPDATE` requiere aprobación posterior, backup/auditoría y decisión sobre PDFs con acuse digital. Ver [MEJ-006](MEJ-006-recalculo-historico-2025.md).
+
 ## 9. Fuentes de referencia
 
 - [Contexto funcional](../funcional/contexto-funcional.md)
