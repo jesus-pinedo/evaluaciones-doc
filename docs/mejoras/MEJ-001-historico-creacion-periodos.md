@@ -848,4 +848,80 @@ No se modificaron publicación, creación de snapshots, evaluaciones históricas
 5. Distinguir: (a) periodo incorrecto; (b) `evaluatorId` incorrecto; (c) asignaciones inexistentes; (d) filtros/estado/paginación; (e) desincronía React/servidor; no inventar datos ni escribir registros por hipótesis.
 6. Preparar corrección **mínima** solo tras confirmar causa. Mantener separadas consultas operativas de «Mis Evaluaciones» (vigente por fecha) y selector histórico del dashboard P3 (por `periodId`).
 
-**Estado:** **incidencia abierta, causa no diagnosticada**. No modificar histórico, scores, respuestas, periodos o asignaciones sin autorización. El recálculo de 2025 pasa a [MEJ-006](MEJ-006-recalculo-historico-2025.md) y queda aplazado.
+**Estado inicial:** incidencia abierta al registrar la captura; la causa quedó diagnosticada en la sección 25. No modificar histórico, scores, respuestas, periodos o asignaciones sin autorización. El recálculo de 2025 pasa a [MEJ-006](MEJ-006-recalculo-historico-2025.md) y queda aplazado.
+
+## 25. Diagnóstico de la incidencia 0/0 (2026-10-20)
+
+**Estado: defecto de identidad confirmado; corrección pendiente de aprobación.**
+
+### Causa exacta
+
+El 0/0 no lo causa la selección de un periodo histórico. La causa es que el flujo usa el identificador del **usuario de aplicación** como si fuera el identificador del **empleado evaluador**:
+
+1. El payload SSO distingue `userId` de `employeeId`. En la sesión real inspeccionada, `employeeId` estaba en `null`; no se registran aquí nombres ni identificadores personales.
+2. `api/src/modules/auth/auth.service.js#exchangeCode` firma el JWT con `sub = payload.userId` y no incluye `employeeId` entre los claims.
+3. `api/src/core/middlewares/auth.middleware.js#authenticate` convierte `sub` en `req.user.id`.
+4. Los dos controladores de my-team toman primero `req.user.id` y lo pasan como `evaluatorId`. El parámetro de query del overview queda ignorado cuando existe sesión autenticada.
+5. `Evaluation.evaluatorId` no referencia usuarios de aplicación: referencia `gestion_humana.gh_empleados.em_id` mediante el modelo `Employee`.
+6. Tanto el resumen como la lista aplican el filtro `periodId + evaluatorId + isActive=true`. Al recibir un identificador del dominio equivocado, no encuentran las asignaciones del empleado evaluador y responden con totales/lista vacíos.
+
+Por tanto, la pantalla no está consultando automáticamente evaluaciones de 2025. Está consultando el periodo vigente correcto con un `evaluatorId` que no representa al empleado autenticado.
+
+### Comprobaciones realizadas
+
+| Comprobación | Resultado |
+|---|---|
+| Periodo del overview | `periods.service.js#getMyTeamOverview` usa `findCurrentPublishedPeriod()`: publicado y `startDate <= hoyBogota <= endDate`. |
+| Periodo del listado | `evaluations.controller.js#getMyTeamEvaluations` usa el mismo `findCurrentPublishedPeriod()`. |
+| Encabezado React | Sale exclusivamente del overview; no existe otra consulta de periodos para `ActivePeriodCard`. |
+| Filtro del overview | `periodId`, `evaluatorId` e `isActive=true`; no añade estado ni búsqueda. |
+| Filtro inicial del listado | Los mismos tres campos; `status=all` no añade condición de estado y la búsqueda inicial está vacía. |
+| Caché/sobrescritura | No se encontró React Query, caché de servicio, persistencia del listado ni respuesta histórica que reemplace los datos. React conserva solo estado local. |
+| Solicitud real | Network confirmó `GET .../my-team/overview?evaluatorId=11712`; con JWT activo el backend descarta ese fallback y usa `req.user.id`. La duplicación observada corresponde al montaje de desarrollo/Strict Mode, no a periodos distintos. |
+| Identidad real | El objeto de sesión contiene campos separados `userId` y `employeeId`; para la sesión observada `employeeId` es nulo. El JWT actual solo conserva `userId` como `sub`. |
+| Asignaciones reales 2026 | No se pudo ejecutar la consulta agregada: PostgreSQL interno no era alcanzable porque la VPN corporativa estaba desconectada. No se modificó ni se inventó ningún dato. La existencia de asignaciones bajo otro `Employee.id` queda pendiente de verificación cuando haya acceso de solo lectura. |
+
+Una recarga de diagnóstico posterior devolvió 500 porque la base interna dejó de ser alcanzable; ese error de conectividad es independiente del 0/0 capturado antes y la interfaz lo presentó como error de resolución, no como datos vacíos.
+
+### Defectos de código relacionados
+
+1. **Backend — defecto principal:** confunde `userId` con `employeeId` al resolver el evaluador.
+2. **Backend — contrato inseguro/ambiguo:** conserva un fallback por `req.query.evaluatorId`, aunque un usuario autenticado nunca debería elegir su identidad para «Mis Evaluaciones».
+3. **Frontend — deuda confirmada:** `EvaluationsPage.tsx` envía el literal `11712` únicamente al overview. Hoy el backend autenticado lo ignora, por lo que no causó este 0/0, pero debe eliminarse para no reintroducir divergencia si cambia el middleware.
+4. **Datos/SSO — bloqueo de la sesión observada:** mientras `employeeId` sea nulo, el sistema no puede vincular de forma segura al usuario con `Employee`. No corresponde crear asignaciones ni inferir el vínculo automáticamente.
+
+### Corrección mínima propuesta (no aplicada)
+
+1. Incluir `employeeId` del payload SSO como claim explícito del JWT, conservando `sub=userId` para auditoría y otros módulos.
+2. Normalizar en `authenticate` un campo separado `req.user.employeeId`; no reemplazar globalmente `req.user.id`.
+3. En `getMyTeamEvaluationsOverview` y `getMyTeamEvaluations`, usar exclusivamente `req.user.employeeId` como `evaluatorId` y retirar el fallback por query para estas rutas autenticadas.
+4. Si falta el vínculo, responder un error informativo y estable (por ejemplo, 409 `EVAL_EMPLOYEE_ID_MISSING`) en vez de presentar 0/0 como si no existieran asignaciones.
+5. En React, eliminar el parámetro y el literal `11712` de `getActiveEvaluationsOverview`; ambos endpoints dependerán de la misma identidad autenticada.
+6. Corregir en el origen autorizado del SSO el vínculo de usuario a empleado para la cuenta afectada. Esta acción de datos queda fuera de esta corrección y no debe automatizarse desde evaluaciones.
+
+No se propone tocar selección de periodos, evaluaciones, asignaciones, P2, P3, P4, esquema ni migraciones.
+
+### Pruebas propuestas antes de aplicar
+
+Backend:
+
+1. `userId` distinto de `employeeId`: ambos endpoints consultan con `employeeId` y nunca con `userId`.
+2. `employeeId` ausente/nulo: ambos responden el código informativo y no llaman servicios de evaluaciones.
+3. Un `evaluatorId` de query distinto no puede sustituir la identidad autenticada.
+4. Overview y listado reciben el mismo periodo devuelto por `findCurrentPublishedPeriod()`.
+5. Periodo vigente con asignaciones activas para el empleado: resumen y lista coinciden por total y estados.
+6. Periodo vigente sin asignaciones para un empleado correctamente vinculado: 0/0 legítimo.
+7. Sin periodo vigente: se conserva el estado informativo de P1.3 y no se consulta histórico.
+
+Frontend:
+
+1. El overview se solicita sin `evaluatorId` literal ni query de identidad.
+2. Si el backend informa vínculo de empleado faltante, se muestra ese estado y no se solicita el listado.
+3. Con periodo vigente, la lista se solicita una vez resuelto el overview y conserva filtros/paginación actuales.
+4. Respuestas tardías o duplicadas del mismo montaje no reemplazan datos con otro periodo/identidad.
+
+Validación integrada de solo lectura, cuando exista acceso autorizado:
+
+1. Comparar el `period.id` vigente con conteos de `evaluation.evaluations` por `period_id + evaluator_id + is_active`.
+2. Confirmar que el `employeeId` del JWT existe como `gh_empleados.em_id` y que coincide con las asignaciones creadas al publicar.
+3. Comparar overview y listado bajo el mismo JWT sin consultar ni modificar registros históricos.
