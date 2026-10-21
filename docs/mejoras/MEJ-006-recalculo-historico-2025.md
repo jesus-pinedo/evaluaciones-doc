@@ -384,3 +384,14 @@ Se generaron cuatro artefactos descargables en esta conversación, usando el inv
 5. Ejecutar `03-VERIFICAR.sql` y un nuevo inventario post; confrontar IDs, score, clasificación, respuesta, acuses, `isActive`, escalas y grupos contra la foto pre. Verificar muestra de PDFs/reportes; conservar `04-REVERTIR.sql` para contingencia, sujeto a los checks de reversión.
 
 **Estado:** **VALIDADO EN PRUEBAS, PRODUCCIÓN NO EJECUTADA**. El mismo SQL depende de que el inventario productivo sea exactamente el esperado; la validación de evidencia documental de PDFs y aprobación de normalización de límites siguen siendo decisiones funcionales previas.
+
+
+## 13. Producción: error de columna ausente y DDL correctivo preparado (2026-10-21)
+
+Al ejecutar `01-PREVALIDACION.sql` en el servidor reportado de producción (`sisproing`, rol `desarrollos`, servidor `172.31.9.6`), el bloque de validación `Query 13` falló porque **`evaluation.period_groups.weight_percentage` no existe**. Por ello **no pasó la prevalidación ni se autorizó el `02-APLICAR.sql` en producción**.
+
+En P2.1 están definidas dos columnas nuevas (Prisma `Decimal? @db.Decimal(5,2)`): `evaluation.question_groups.weight_percentage NUMERIC(5,2) NULL` y `evaluation.period_groups.weight_percentage NUMERIC(5,2) NULL`. La migración local preparada es `api/prisma/migrations/20261020100000_add_group_weight_percentage/migration.sql` (historial Prisma con divergencias conocidas; no ejecutar `prisma migrate deploy` indiscriminadamente).
+
+Se entregó el SQL **`MEJ-006-PRODUCCION-00-esquema-pesos-grupos.sql`** para aplicar ambas columnas con `ADD COLUMN IF NOT EXISTS`, restricciones CHECK de 0–100, validación de tipo y verificación del periodo 6 con ocho snapshots y pesos `NULL`; no contiene `UPDATE` de pesos, respuestas ni puntajes. **Este archivo se ha preparado, no ejecutado desde ChatGPT.** Los nombres de restricciones de este script deben conciliarse con la migración Prisma antes de una posterior ejecución formal de migraciones, para evitar restricciones lógicamente duplicadas o migraciones pendientes marcadas erróneamente.
+
+**Siguientes controles en producción:** confirmar backup/host; ejecutar DDL, verificar columna y `weight_percentage=NULL` de periodo 6; inspeccionar también si otros periodos nuevos requieren snapshot ponderado válido, **sin rellenarlos automáticamente**; correr `01-PREVALIDACION.sql` de nuevo completamente y revisar controles de 1.399/1.206/193/42/405. Si difiere cualquier registro productivo, detener y regenerar matriz desde inventario productivo: no omitir controles. Solo pasar a `02-APLICAR.sql` luego de las salvaguardas de respaldo y PDF/acuse que figuran en sección 12.
