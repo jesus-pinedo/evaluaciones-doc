@@ -219,3 +219,21 @@ El lote sintético de control contenía cuatro evaluaciones `COMPLETED`: una sin
 - Resolver primero cualquier discrepancia del caso 8120; no forzar `61,4 %` si la base no contiene las 33 respuestas/suma 102 documentadas.
 - Definir la política de versión rectificada del PDF sin presentar el acuse anterior como aceptación de una nueva calificación.
 - Una futura herramienta de escritura debe ser separada, transaccional, idempotente, limitada a IDs aprobados y exigir que el valor original siga coincidiendo con el export revisado. No se preparó ni ejecutó SQL `UPDATE` en MEJ-006.1.
+
+
+## 8. Identificador de periodo confirmado por el responsable (2026-10-21)
+
+El responsable confirmó que el periodo histórico a auditar corresponde a **`periodId = 6`**. Se registra como identificador informado por el responsable; el script debe **verificarlo contra PostgreSQL** y exigir que el nombre de la campaña coincida con «Evaluación de Desempeño - Año 2025» antes de procesar.
+
+La conexión `MEJ006_READONLY_DATABASE_URL` **no es una base de datos adicional**: puede apuntar a la misma base `sisproing` configurada en el API, pero requiere un rol PostgreSQL de solo lectura. Por diseño, `mej-006-dry-run-2025.mjs` no carga `.env` ni usa `DB_URL` como sustituto. La transacción `READ ONLY` no reemplaza la exigencia de privilegios exclusivamente `SELECT`. No introducir credenciales en el repositorio ni en el documento.
+
+El primer comando tras configurar la variable es:
+
+```bash
+npm run audit:mej-006 -- \\
+  --period-id=6 \\
+  --inventory-only \\
+  --output-dir=./tmp/mej-006
+```
+
+**Estado:** `periodId` conocido por declaración del responsable, pendiente de confirmación contra la base; inventario y dry-run reales aún no ejecutados. **Ningún cambio a PostgreSQL autorizado.**
