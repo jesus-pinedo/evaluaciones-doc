@@ -84,3 +84,138 @@ Cuando el responsable solicite reabrir este punto: **preparar el `dry-run` de so
 6. Consultar la escala snapshot `PeriodScoreScale` del periodo y reportar rangos solapados/huecos, porque `ratingLabel` puede no corresponder exactamente a todo decimal con un decimal.
 
 **Separación de autorizaciones:** reabrir el plan **no autoriza** modificaciones en base de datos, creación/edición de PDF, actualización de calificaciones, alteraciones de acuse, migraciones o generación de correos. Para pasar de `dry-run` a `UPDATE` será necesaria nueva aprobación expresa del responsable, después de respaldo, trazabilidad y política de PDF rectificado.
+
+## 7. MEJ-006.1 — Implementación del dry-run de solo lectura (2026-10-21)
+
+### 7.1 Estado de la verificación real
+
+**Implementado:** se preparó el ejecutable manual `api/scripts/mej-006-dry-run-2025.mjs`, apoyado por `api/src/modules/employee-evaluations/evaluations/mej006DryRun.utils.js`. El cálculo importa y usa directamente `calculateEvaluationScore` de `evaluationScore.utils.js`; no replica la fórmula P2 ni llama a `calculateAndSaveScore`.
+
+**Pendiente de verificar:** en el entorno de trabajo no existe `MEJ006_READONLY_DATABASE_URL`, no se expuso otra conexión identificada y autorizada de solo lectura, y no se encontró el archivo `Evaluacion_8120.pdf` en los repositorios habilitados. En cumplimiento de `AGENTS.md`, no se inspeccionaron archivos `.env`, credenciales ni datos personales y no se utilizó `DB_URL` como alternativa. Por ello todavía no se pueden afirmar:
+
+- el `periodId` real de «Evaluación de Desempeño - Año 2025»;
+- los ocho `PeriodGroup.id` reales ni sus descripciones exactas;
+- los conteos reales por estado, los registros de respuesta o la escala snapshot;
+- el resumen real de diferencias;
+- que `8120` sea la PK PostgreSQL correspondiente al PDF ni que sus 33 respuestas sumen 102.
+
+La consulta inicial que debe ejecutarse con el rol autorizado es:
+
+```sql
+SELECT id, name, start_date, end_date, is_active
+FROM evaluation.evaluation_periods
+WHERE name = 'Evaluación de Desempeño - Año 2025'
+ORDER BY id;
+```
+
+Si retorna cero o más de una fila, se debe documentar la discrepancia y no elegir un período por aproximación. El `periodId` confirmado se suministra expresamente al script; este vuelve a exigir que el nombre coincida exactamente.
+
+### 7.2 Mapa obligatorio de grupos históricos
+
+El mapa real queda pendiente de completar después del inventario. No se asigna ningún peso por orden ni por coincidencia automática de texto. Cada entrada debe contener el ID snapshot, la descripción copiada exactamente del inventario, una clave de negocio explícita y el peso aprobado:
+
+| Clave de negocio | `PeriodGroup.id` real | Descripción snapshot exacta | Peso |
+|---|---:|---|---:|
+| `ORIENTACION_A_RESULTADOS` | Pendiente | Pendiente | 20 % |
+| `CALIDAD` | Pendiente | Pendiente | 10 % |
+| `RELACIONES_INTERPERSONALES` | Pendiente | Pendiente | 10 % |
+| `TRABAJO_EN_EQUIPO` | Pendiente | Pendiente | 5 % |
+| `PLANEACION` | Pendiente | Pendiente | 15 % |
+| `INNOVACION_Y_COMUNICACIONES` | Pendiente | Pendiente | 5 % |
+| `ACTITUD` | Pendiente | Pendiente | 15 % |
+| `RESPONSABILIDADES_EN_SST` | Pendiente | Pendiente | 20 % |
+
+Formato del archivo revisado, donde los valores ilustrativos deben reemplazarse por los IDs y textos reales:
+
+```json
+[
+  {
+    "periodGroupId": 0,
+    "snapshotDescription": "DESCRIPCIÓN EXACTA DEL SNAPSHOT",
+    "businessGroup": "ORIENTACION_A_RESULTADOS",
+    "weightPercentage": 20
+  }
+]
+```
+
+El script rechaza IDs faltantes, desconocidos o duplicados; claves de negocio faltantes o duplicadas; descripciones que no coinciden exactamente; pesos diferentes a la matriz aprobada; cantidad distinta de ocho grupos; grupos sin preguntas; preguntas sin grupo válido; y cualquier `weight_percentage` persistido no nulo. Este último control demuestra que el snapshot continúa en modo `LEGACY`; el mapa solo existe en memoria durante la simulación.
+
+### 7.3 Controles de solo lectura
+
+El ejecutable:
+
+1. acepta exclusivamente `MEJ006_READONLY_DATABASE_URL`; no cae en `DB_URL` ni carga `.env`;
+2. abre `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`;
+3. verifica `transaction_read_only = on`, acceso `SELECT` a las seis tablas consultadas, rol no superusuario y ausencia de privilegios `INSERT`, `UPDATE`, `DELETE` y `TRUNCATE` sobre esas tablas;
+4. usa solamente sentencias `SELECT` dentro de la transacción y finaliza con `ROLLBACK`;
+5. no contiene `UPDATE`, migraciones, colas, correo, cron ni llamadas a `calculateAndSaveScore`.
+
+Incluye todas las evaluaciones `COMPLETED` del período sin filtrar por `is_active`; el CSV conserva esa bandera. También incluye preguntas snapshot activas e inactivas, porque la fórmula P2 opera sobre el snapshot completo.
+
+### 7.4 Ejecución
+
+Desde `api/`, primero se genera el inventario verificable:
+
+```bash
+MEJ006_READONLY_DATABASE_URL='postgresql://ROL_SOLO_LECTURA@HOST/BASE' \
+npm run audit:mej-006 -- \
+  --period-id=ID_REAL \
+  --inventory-only \
+  --output-dir=/RUTA/SEGURA/mej-006
+```
+
+El inventario contiene período, grupos, preguntas con descripción y grupo, escala, totales por estado/actividad, evaluaciones completadas y respuestas sin datos personales. Después de revisar los ocho emparejamientos y guardar el JSON de pesos:
+
+```bash
+MEJ006_READONLY_DATABASE_URL='postgresql://ROL_SOLO_LECTURA@HOST/BASE' \
+npm run audit:mej-006 -- \
+  --period-id=ID_REAL \
+  --weights-file=/RUTA/SEGURA/pesos-2025-revisados.json \
+  --output-dir=/RUTA/SEGURA/mej-006
+```
+
+Se generan:
+
+- `mej-006-period-ID.csv`, con las doce columnas solicitadas;
+- `mej-006-period-ID-summary.json`, con totales y control 8120;
+- `mej-006-period-ID-audit.json`, con inventario, mapa aplicado, preguntas, escala, integridad de rangos, conteos de respuestas y desglose no personal del control 8120.
+
+El proceso sale con código `2` después de escribir los reportes si el control 8120 no coincide; esto impide considerar el lote listo sin ocultar la evidencia observada.
+
+### 7.5 Validaciones y exclusiones
+
+Por evaluación se comprueba que cada respuesta apunte a una pregunta del mismo período, que no haya duplicados, que el valor sea entero entre 1 y 5, que existan respuestas para todas las preguntas y que ningún grupo quede incompleto. Antes de proponer el resultado ponderado se calcula el valor `LEGACY` con el mismo helper P2 y se exige coincidencia exacta con el score persistido a un decimal.
+
+La clasificación propuesta reproduce el contrato actual de `calculateAndSaveScore`: selecciona el rango inclusivo que contiene el score y usa `PeriodScoreScale.description` como `ratingLabel`. Un hueco, solapamiento o discrepancia del `ratingLabel` histórico excluye la evaluación y queda registrado en `exclusionReason`. El inventario también reporta huecos y solapamientos de toda la escala a resolución de 0,1 puntos.
+
+Los registros excluidos permanecen en el CSV; no se omiten silenciosamente. Los totales de cambios y las estadísticas de diferencias se calculan solo sobre registros `VALID`, mientras `completedEvaluations` y `excludedEvaluations` conservan el universo completo.
+
+### 7.6 Pruebas ejecutadas
+
+Se agregó `api/tests/employee-evaluations/mej-006-dry-run.test.js` con datos sintéticos, sin conexión a PostgreSQL. Resultados:
+
+| Prueba | Resultado |
+|---|---|
+| Control sintético 8120: 33 respuestas, suma 102, `61,8 % -> 61,4 %`, acuse confirmado | **Aprobada** |
+| Inclusión de evaluación `COMPLETED` inactiva | **Aprobada** |
+| Exclusión por respuesta faltante/grupo incompleto | **Aprobada** |
+| Exclusión cuando el persistido no coincide con LEGACY | **Aprobada** |
+| Rechazo de mapa con descripción o peso no aprobado | **Aprobada** |
+| Contrato y minimización de datos del CSV | **Aprobada** |
+| Detección de huecos y solapamientos de escala | **Aprobada** |
+| `node --test tests/employee-evaluations/mej-006-dry-run.test.js` | **6/6 aprobadas** |
+| Regresión P2 `node --test tests/employee-evaluations/weighted-score.test.js` | **20/20 aprobadas** |
+| Suite completa `node --test tests/employee-evaluations/*.test.js` | **38 aprobadas, 0 fallidas, 1 omitida** por no suministrar la base PostgreSQL aislada opcional |
+| `npm run type-check` | **Aprobada** |
+| `git diff --check` | **Aprobada** |
+
+El lote sintético de control contenía cuatro evaluaciones `COMPLETED`: una sin cambios, una con cambio de `-0,4` puntos y dos excluidas por inconsistencias; ninguna cambió de clasificación, una tenía acuse confirmado, la diferencia promedio de las dos filas válidas fue `-0,2`, la máxima negativa `-0,4` y no hubo diferencia positiva. Este resumen solo demuestra el comportamiento de los contadores y la reutilización de la fórmula; **no confirma ningún dato histórico real**.
+
+### 7.7 Precauciones para una futura actualización
+
+- Revisar conjuntamente el CSV, el mapa de IDs y todas las exclusiones antes de diseñar cualquier escritura.
+- Preservar export firmado/checksum de `score`, `rating_label`, acuse y procedencia del PDF original antes de corregir.
+- No rellenar `period_groups.weight_percentage` del período 2025 ni cambiar respuestas, acuses o PDFs originales.
+- Resolver primero cualquier discrepancia del caso 8120; no forzar `61,4 %` si la base no contiene las 33 respuestas/suma 102 documentadas.
+- Definir la política de versión rectificada del PDF sin presentar el acuse anterior como aceptación de una nueva calificación.
+- Una futura herramienta de escritura debe ser separada, transaccional, idempotente, limitada a IDs aprobados y exigir que el valor original siga coincidiendo con el export revisado. No se preparó ni ejecutó SQL `UPDATE` en MEJ-006.1.
