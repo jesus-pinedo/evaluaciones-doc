@@ -852,20 +852,20 @@ No se modificaron publicación, creación de snapshots, evaluaciones históricas
 
 ## 25. Diagnóstico de la incidencia 0/0 (2026-10-20)
 
-**Estado: defecto de identidad confirmado; corrección pendiente de aprobación.**
+**Estado del análisis inicial: posible desajuste de identidad. REEVALUADO el 2026-10-21 tras pruebas con otro usuario (ver sección 26). No se autoriza aplicar la corrección hasta contrastar IDs y asignaciones reales.**
 
-### Causa exacta
+### Hipótesis de identidad inicial (causalidad del 0/0 no demostrada)
 
-El 0/0 no lo causa la selección de un periodo histórico. La causa es que el flujo usa el identificador del **usuario de aplicación** como si fuera el identificador del **empleado evaluador**:
+No se halló selección de un periodo histórico. La revisión de código detectó un **riesgo potencial**: el flujo utiliza el identificador del **usuario de aplicación** como si fuera el identificador del **empleado evaluador**; sin cotejar sus IDs reales en base no puede atribuirse el 0/0 a esta diferencia:
 
 1. El payload SSO distingue `userId` de `employeeId`. En la sesión real inspeccionada, `employeeId` estaba en `null`; no se registran aquí nombres ni identificadores personales.
 2. `api/src/modules/auth/auth.service.js#exchangeCode` firma el JWT con `sub = payload.userId` y no incluye `employeeId` entre los claims.
 3. `api/src/core/middlewares/auth.middleware.js#authenticate` convierte `sub` en `req.user.id`.
 4. Los dos controladores de my-team toman primero `req.user.id` y lo pasan como `evaluatorId`. El parámetro de query del overview queda ignorado cuando existe sesión autenticada.
 5. `Evaluation.evaluatorId` no referencia usuarios de aplicación: referencia `gestion_humana.gh_empleados.em_id` mediante el modelo `Employee`.
-6. Tanto el resumen como la lista aplican el filtro `periodId + evaluatorId + isActive=true`. Al recibir un identificador del dominio equivocado, no encuentran las asignaciones del empleado evaluador y responden con totales/lista vacíos.
+6. Tanto el resumen como la lista aplican el filtro `periodId + evaluatorId + isActive=true`. **Si** el identificador utilizado no corresponde al empleado evaluador, podría consultar asignaciones equivocadas o retornar vacío; requiere contraste de identidad y conteos en base.
 
-Por tanto, la pantalla no está consultando automáticamente evaluaciones de 2025. Está consultando el periodo vigente correcto con un `evaluatorId` que no representa al empleado autenticado.
+La documentación del código respalda la selección del **periodo vigente**, no del histórico 2025. La hipótesis de que el `evaluatorId` no represente al empleado autenticado **permanece sin verificación integrada**.
 
 ### Comprobaciones realizadas
 
@@ -883,14 +883,14 @@ Por tanto, la pantalla no está consultando automáticamente evaluaciones de 202
 
 Una recarga de diagnóstico posterior devolvió 500 porque la base interna dejó de ser alcanzable; ese error de conectividad es independiente del 0/0 capturado antes y la interfaz lo presentó como error de resolución, no como datos vacíos.
 
-### Defectos de código relacionados
+### Observaciones de código y riesgos a comprobar
 
-1. **Backend — defecto principal:** confunde `userId` con `employeeId` al resolver el evaluador.
+1. **Backend — riesgo potencial de identidad:** utiliza el claim de usuario como `evaluatorId`; es necesario verificar el contrato SSO y la coincidencia efectiva de IDs antes de cambiarlo.
 2. **Backend — contrato inseguro/ambiguo:** conserva un fallback por `req.query.evaluatorId`, aunque un usuario autenticado nunca debería elegir su identidad para «Mis Evaluaciones».
 3. **Frontend — deuda confirmada:** `EvaluationsPage.tsx` envía el literal `11712` únicamente al overview. Hoy el backend autenticado lo ignora, por lo que no causó este 0/0, pero debe eliminarse para no reintroducir divergencia si cambia el middleware.
-4. **Datos/SSO — bloqueo de la sesión observada:** mientras `employeeId` sea nulo, el sistema no puede vincular de forma segura al usuario con `Employee`. No corresponde crear asignaciones ni inferir el vínculo automáticamente.
+4. **Datos/SSO — discrepancia observada:** la sesión investigada tiene `employeeId=null`, pero posteriormente el responsable aclaró que ese usuario no tenía empleados asignados. No se ha demostrado que el dato nulo sea la causa del 0/0. No crear asignaciones ni inferir vínculos automáticamente.
 
-### Corrección mínima propuesta (no aplicada)
+### Corrección condicional propuesta (NO APROBADA todavía; ver sección 26)
 
 1. Incluir `employeeId` del payload SSO como claim explícito del JWT, conservando `sub=userId` para auditoría y otros módulos.
 2. Normalizar en `authenticate` un campo separado `req.user.employeeId`; no reemplazar globalmente `req.user.id`.
@@ -925,3 +925,20 @@ Validación integrada de solo lectura, cuando exista acceso autorizado:
 1. Comparar el `period.id` vigente con conteos de `evaluation.evaluations` por `period_id + evaluator_id + is_active`.
 2. Confirmar que el `employeeId` del JWT existe como `gh_empleados.em_id` y que coincide con las asignaciones creadas al publicar.
 3. Comparar overview y listado bajo el mismo JWT sin consultar ni modificar registros históricos.
+
+
+## 26. Reevaluación de la incidencia tras prueba con segundo usuario (2026-10-21)
+
+**Nueva evidencia del responsable:** el primer usuario usado para probar el sistema **no tiene personas a evaluar**; el segundo usuario sí tiene asignaciones y la pantalla «Mis Evaluaciones» mostró **9 empleados** (5 en página 1 de 2) con estado pendiente. Esto demuestra que el listado funciona para al menos una identidad, y convierte el `0/0` original en un **resultado potencialmente legítimo**. No se observó consulta involuntaria del periodo 2025.
+
+**Conclusión revisada:** la **causalidad del 0/0 por mezcla `userId`/`employeeId` NO está demostrada**. La discrepancia estática entre dominios de IDs y el parámetro fijo `11712` siguen siendo **posibles riesgos técnicos**, pero una corrección de JWT/SSO ahora sin verificar el contrato de identidad podría romper usuarios que funcionan. Se **suspende** la autorización de implementación y se sustituye por comprobación dirigida de solo lectura.
+
+**Verificación mínima antes de cualquier cambio:**
+
+1. Para los **dos** usuarios, contrastar los identificadores de sesión y del token (`userId`, `employeeId`, `JWT.sub`) con el identificador real del empleado evaluador en `gestion_humana.gh_empleados.em_id`. Registrar solo si los valores coinciden o difieren, sin exponer JWT ni PII.
+2. Bajo el periodo publicado vigente, comparar de solo lectura los conteos de `evaluation.evaluations` por `period_id + evaluator_id + is_active`, para el ID que usa efectivamente cada endpoint. Confirmar 0 para el usuario sin asignaciones y 9 para el otro **solo si los datos reales lo respaldan**.
+3. Verificar si existe una regla SSO documentada que hace que `JWT.sub` represente al empleado, o si el backend está haciendo una coincidencia numérica accidental. Si los dominios son distintos, analizar impacto de seguridad y corregir con un plan de compatibilidad, sin cambios globales a `req.user.id`.
+4. Comprobar que no se permita suplir un `evaluatorId` ajeno mediante query string, independientemente de que las cuentas probadas funcionen; el literal `11712` sigue siendo deuda acotada de frontend a corregir con pruebas.
+5. Mantener P1.3 vigente: «Mis Evaluaciones» consulta solo el periodo publicado dentro de las fechas de Bogotá; NO heredar el fallback histórico del dashboard P3.
+
+**Estado actual:** flujo principal de «Mis Evaluaciones» funciona para el usuario con 9 asignaciones; causa del `0/0` original razonablemente explicada por ausencia de asignaciones, **pendiente de confirmar por conteos reales**. **No implementar el cambio de JWT/SSO todavía.**
