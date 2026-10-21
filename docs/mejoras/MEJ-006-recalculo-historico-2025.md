@@ -302,3 +302,30 @@ Se preparó un libro de conciliación derivado del JSON con los **1.399 `evaluat
 **Protocolo cuando llegue el Excel:** cruzar por **`evaluationId`**, NUNCA por orden de fila; detectar IDs exclusivos en DB/Excel, duplicados, faltantes, scores almacenados que ya coinciden con Excel y diferencias Excel vs cálculo P2. Clasificar las nueve anomalías sin forzar su recalculo y generar la matriz definitiva de actualización **solo tras revisión y aprobación explícita**.
 
 No se ejecutaron SQL UPDATE, modificaciones de snapshots, correos, acuses ni migraciones.
+
+
+## 10. Conciliación con compilado Excel manual (2026-10-21)
+
+**Nueva fuente:** `Compilado_evaluaciones_desempeño (1).xlsx`, hoja única `_WITH_group_scores_AS_SELECT_e_`, 1.384 filas de empleados, columnas de ocho porcentajes de grupos (F:M) y `PUNTAJE TOTAL` entero (N). El archivo **NO** incluye `evaluationId`, por lo cual el cruce con el JSON por IDs **no es una vinculación inequívoca de personas**. La cédula existe en Excel, pero no está en el inventario JSON (deliberadamente minimizado).
+
+**Resultado del cotejo local, sin DB:** se calculó para cada evaluación `COMPLETED` activa el vector de **ocho porcentajes de grupo, redondeados a entero**, a partir de las 33 respuestas snapshot del JSON. Los multiconjuntos de estos vectores coinciden **exactamente** entre las **1.384 activas** de PostgreSQL y las **1.384 filas** del Excel (misma cantidad y multiplicidad para cada uno de los 1.012 vectores distintos). **923 evaluaciones activas** tienen vector que aparece una sola vez; **461** tienen vector compartido, sin identidad individual comprobada por esa sola clave. Los **15 `COMPLETED` inactivos** no forman parte del archivo Excel, y permanecen sujetos a revisión separada.
+
+**Nueve puntajes manuales confirmados por el responsable:** el responsable confirmó que los IDs `7986, 8002, 8431, 8710, 8833, 8942, 8975, 9095, 9231` fueron corregidos manualmente conforme al Excel. El cotejo por vector demuestra que para cada uno de los nueve el `score` actualmente persistido **coincide exactamente** con el `PUNTAJE TOTAL` entero del Excel. Para `8833` hay 10 filas candidatas por el mismo vector; para `9231` hay 2; las otras 7 cuentan con vector único. Se mantiene pendiente confirmar la identidad mediante relación `Evaluation.employeeId → Employee/documento` y `CEDULA` de Excel, antes de un `UPDATE`.
+
+| `evaluationId` | Score BD | Score LEGACY | Total Excel (entero) | P2 ponderado (1 decimal) |
+|---:|---:|---:|---:|---:|
+| 7986 | 91,0 | 89,7 | 91 | 90,5 |
+| 8002 | 88,0 | 86,7 | 88 | 88,1 |
+| 8431 | 83,0 | 83,6 | 83 | 82,8 |
+| 8710 | 66,0 | 69,1 | 66 | 66,5 |
+| 8833 | 80,0 | 78,8 | 80 | 79,5 |
+| 8942 | 88,0 | 88,5 | 88 | 88,4 |
+| 8975 | 92,0 | 92,1 | 92 | 92,1 |
+| 9095 | 74,0 | 72,7 | 74 | 74,0 |
+| 9231 | 77,0 | 76,4 | 77 | 77,0 |
+
+**Diferencia de precisión:** el Excel compila un resultado entero, mientras P2 aprobado conserva **un decimal**. Solo **199/1.384** puntajes guardados coinciden numéricamente con el entero del Excel y 1.185 difieren; no equivale a decir que 1.185 fueron corregidos incorrectamente. El total del Excel coincide con redondear a entero el valor ponderado **sin redondeo previo** en **1.343/1.384** casos; en **41** difiere, lo que exige revisar criterio histórico de redondeo y **NO** copiar indiscriminadamente `PUNTAJE TOTAL` para actualizar `score`.
+
+**Artefacto generado:** `MEJ-006-conciliacion-Excel-manual-vs-JSON-periodo-6.xlsx` con hojas `Resumen`, `Conciliacion`, `Nueve corregidos`, `Grupos y pesos`, `Metodo`. Incluye 1.399 evaluaciones completadas, sin cédulas ni nombres para minimizar exposición. Los cálculos de diferencia quedan como fórmulas en el reporte.
+
+**Siguiente control:** ejecutar el **dry-run oficial de Codex** con mapa de IDs 45–52 y obtener CSV/JSON de exclusiones, especialmente escala `60` solapada y hueco `80,1–80,9`. Para conciliación individual definitiva, Codex debe añadir, en modo solo lectura, un cruce local seguro con `CEDULA` del Excel contra los campos de identidad de `Employee`, sin transmitir ni registrar datos personales innecesarios y sin alterar las validaciones del simulador. No se ha autorizado ningún SQL UPDATE.
