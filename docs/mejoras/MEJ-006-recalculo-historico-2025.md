@@ -351,3 +351,36 @@ Se generaron cuatro artefactos descargables en esta conversación, usando el inv
 **SHA256 artefactos:** PRE `cc1fa0eb986b23b3d15aec3adf77b69bc9f066c32bcfd88c4868cabe7e3c2080`; APLICAR `251c0b714f95a92d52999076a654f7ee91441c335d288f02d50e679caa1bb967`; VERIFICAR `b3925f6971c32635fa24649be4be3c0db92670a6b62e0ce26ac371ce06517626`; REVERTIR `8cbc00b6c6b2d557a72557da36bc2e284119b8a37e91a644c527e48954144308`.
 
 **Pendiente:** validar SQL ejecutándolo realmente en PostgreSQL de pruebas, confirmar que los nombres físicos de columnas son correctos, inventario posterior, decisión sobre clasificación y PDFs antes de producción.
+
+
+## 12. Validación post-UPDATE en pruebas y puerta a producción (2026-10-21)
+
+**Evidencia de ejecución en pruebas:** el responsable informó haber ejecutado `01-PREVALIDACION.sql`, `02-APLICAR.sql` y `03-VERIFICAR.sql`, este último con **cero diferencias de huellas de respuestas**. Aportó el JSON posterior `mej-006-period-6-inventory(1).json` (`generatedAt=2026-10-21T23:26:45.747Z`) generado mediante `--inventory-only` con rol de solo lectura.
+
+**Cotejo de los dos JSON reales, por cada `evaluationId`:**
+
+| Control | Verificado |
+|---|---:|
+| Universo completado | 1.399 antes = 1.399 después; sin IDs nuevos/faltantes |
+| Puntaje `score` modificado | **1.206** |
+| Puntaje sin cambios | **193** |
+| `ratingLabel` modificado | **42** |
+| Puntaje modificado con `notificationReceived=true` | **405** |
+| `notificationReceived`, `status`, `isActive` modificados | **0** |
+| Respuestas `responseRecords` modificadas | **0 de 46.167**, listas JSON idénticas |
+| Grupos, preguntas, escalas, contadores y periodo modificados | **0** |
+| Caso `8120` | **61,8 % → 61,4 %**; acuse `true` preservado |
+
+**Control aritmético independiente:** se calcularon nuevamente en memoria, desde los **46.167 registros de respuesta del JSON posterior**, los puntajes P2 de los 1.399 `COMPLETED` usando IDs `45–52`, división por las preguntas de cada grupo, pesos 20/10/10/5/15/5/15/20 y redondeo decimal **solo al final a un decimal**. **0 diferencias frente a `score` persistido**, **0 diferencias de clasificación** frente a la política de límites usada en SQL, **1.399/1.399 con exactamente 33 respuestas**.
+
+**Conclusión técnica en pruebas:** corrección satisfactoria. No hay evidencia en el JSON de alteración de respuestas, acuses, estados, grupos, preguntas o escalas. **No implica que los PDFs existentes o la aceptación original estén salvaguardados documentalmente**, ni que las condiciones de producción sean idénticas.
+
+**Antes de ejecutar producción:**
+
+1. Confirmar inequívocamente host/base productivos y planear un periodo de ejecución sin mutaciones simultáneas. Tomar respaldo externo de BD o del ámbito afectado, independiente de la tabla `evaluation.mej006_backup_period6_v1`.
+2. Conservar las versiones originales de PDFs/acuse ya aceptadas: los **405** casos de `score` cambiado con acuse y las **42** reclasificaciones requieren decisión de Gestión Humana sobre evidencia histórica / documentos rectificados. Probar de nuevo PDF y reportes (por ejemplo `8120`) en el ambiente de pruebas, y confirmar que no se recalcula al método LEGACY en la visualización.
+3. Generar `--inventory-only` sobre producción actual y contrastar contra la matriz del SQL de forma completa. La copia de pruebas tiene un mes de desfase; el mismo SQL solo es aplicable si coincide **cada ID, score viejo, label, estado, acuse, pregunta y respuesta**, además del universo y snapshot. **Si `01-PREVALIDACION.sql` falla, NO ejecutar `02-APLICAR.sql`, no editar salvaguardas; regenerar la matriz desde el inventario productivo autorizado.**
+4. Bajo controles anteriores, ejecutar `01-PREVALIDACION.sql` completo sobre producción y comprobar 1.399/1.206/193/42/405 y control 8120. Solo después, con autorización operativa expresa, ejecutar `02-APLICAR.sql` completo (respaldo + UPDATE + COMMIT).
+5. Ejecutar `03-VERIFICAR.sql` y un nuevo inventario post; confrontar IDs, score, clasificación, respuesta, acuses, `isActive`, escalas y grupos contra la foto pre. Verificar muestra de PDFs/reportes; conservar `04-REVERTIR.sql` para contingencia, sujeto a los checks de reversión.
+
+**Estado:** **VALIDADO EN PRUEBAS, PRODUCCIÓN NO EJECUTADA**. El mismo SQL depende de que el inventario productivo sea exactamente el esperado; la validación de evidencia documental de PDFs y aprobación de normalización de límites siguen siendo decisiones funcionales previas.
