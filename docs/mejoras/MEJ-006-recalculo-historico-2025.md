@@ -237,3 +237,68 @@ npm run audit:mej-006 -- \\
 ```
 
 **Estado:** `periodId` conocido por declaración del responsable, pendiente de confirmación contra la base; inventario y dry-run reales aún no ejecutados. **Ningún cambio a PostgreSQL autorizado.**
+
+
+## 9. Inventario real periodo 6 y conciliación pendiente con Excel manual (2026-10-21)
+
+**Fuente verificada:** archivo exportado de conexión **solo lectura** al PostgreSQL de pruebas: `mej-006-period-6-inventory.json` (`generatedAt=2026-10-21T22:17:22.778Z`). La conexión no tiene privilegios de mutación, las seis tablas eran legibles y la transacción estaba en solo lectura. Este inventario corresponde a una **copia de pruebas de producción** cuyo corte es aproximadamente un mes anterior; los conteos deberán reconciliarse nuevamente al planificar producción.
+
+### 9.1 Grupos e IDs del snapshot
+
+| Grupo histórico | ID | Preguntas | Peso aprobado | weight_percentage almacenado |
+|---|---:|---:|---:|---|
+| Orientación a resultados | 45 | 2 | 20 % | NULL |
+| Calidad | 46 | 5 | 10 % | NULL |
+| Relaciones interpersonales | 47 | 4 | 10 % | NULL |
+| Trabajo en equipo | 48 | 3 | 5 % | NULL |
+| Planeación | 49 | 3 | 15 % | NULL |
+| Innovación y comunicaciones | 50 | 4 | 5 % | NULL |
+| Actitud | 51 | 4 | 15 % | NULL |
+| Responsabilidades en SST | 52 | 8 | 20 % | NULL |
+| **Total** | **8 IDs** | **33** | **100 %** | **LEGACY** |
+
+Se preparó el JSON de mapa de pesos con el contrato exacto del script (`periodGroupId`, `snapshotDescription`, `businessGroup`, `weightPercentage`), **sin escribir en DB**. El responsable debe validar el mapeo contra el inventario y ejecutar el dry-run oficial antes de cualquier corrección.
+
+### 9.2 Universo del inventario
+
+- `COMPLETED is_active=true`: **1.384**; `COMPLETED is_active=false`: **15**; total **1.399 COMPLETED**.
+- `IN_PROGRESS is_active=false`: **2**; `PENDING is_active=false`: **136**. Estos 138 no entran al recálculo.
+- **46.167** respuestas para los 1.399 `COMPLETED` (= 33 por evaluación), sin duplicaciones de par evaluación/pregunta ni puntuaciones fuera de 1–5 en este inventario.
+- **467** completadas con `notificationReceived=true`.
+- La evaluación `8120` figura con `periodId=6`, `score=61,8`, `COMPLETED` y acuse confirmado. Su score ponderado estimado a partir del inventario es **61,4**.
+
+### 9.3 Verificación matemática independiente (no es el dry-run oficial)
+
+Se ejecutó un análisis **local sobre el JSON**: por cada evaluación, puntuación LEGACY `sum(answers)/(33*5)*100`, ponderación por los ocho grupos sin redondeo intermedio y un decimal final (redondeo half-up para valores positivos). Este análisis **no sustituye** la ejecución del código de P2 en el script oficial.
+
+- **1.390/1.399** scores almacenados coinciden con LEGACY; **9 difieren**.
+- Los IDs discrepantes (score almacenado / LEGACY recalculado / ponderado estimado) son:
+  - `7986`: `91,0 / 89,7 / 90,5`
+  - `8002`: `88,0 / 86,7 / 88,1`
+  - `8431`: `83,0 / 83,6 / 82,8`
+  - `8710`: `66,0 / 69,1 / 66,5`
+  - `8833`: `80,0 / 78,8 / 79,5`
+  - `8942`: `88,0 / 88,5 / 88,4`
+  - `8975`: `92,0 / 92,1 / 92,1`
+  - `9095`: `74,0 / 72,7 / 74,0`
+  - `9231`: `77,0 / 76,4 / 77,0`
+- **No interpretar estas nueve diferencias como corrupción ni sobrescribirlas:** puede haber correcciones anteriores no documentadas. Dos coinciden exactamente con el ponderado estimado (`9095`, `9231`), pero eso no demuestra el origen.
+- Diferencia teórica al aplicar pesos a los 1.399 scores almacenados: **1.206 cambian, 193 no cambian** (cifras exploratorias, incluyen los nueve excepcionales y casos de escala no válida; NO representan las filas autorizadas para update).
+
+### 9.4 Escala del periodo: condición bloqueante para clasificación automática
+
+La escala snapshot es: **20–40**, **41–60**, **60–80**, **81–100** con extremos inclusivos. Al trabajar con resultados a un decimal:
+
+- **60,0** pertenece a dos categorías: **37** scores actuales y **37** scores ponderados estimados caen exactamente allí.
+- **80,1–80,9** no pertenecen a ninguna: **44** scores almacenados y **63** scores ponderados estimados caen allí.
+- No se debe asignar `ratingLabel` automáticamente sin resolver la regla de límites y documentar la decisión. El dry-run oficial excluye o marca ambigüedades de escala según su validación.
+
+### 9.5 Conciliación con Excel de correcciones anteriores: archivo pendiente
+
+Se encontró disponible el libro **`HF-011 Evaluación de Desempeño Rev9 (2).xlsx`**, que es la **plantilla del formulario** y **no contiene el archivo de calificaciones corregidas por `evaluationId`**. El responsable solicitó cruzar también los IDs/valores del Excel corregido previamente en otro proceso. **No se ha hecho todavía ese cruce por falta de la fuente correcta.**
+
+Se preparó un libro de conciliación derivado del JSON con los **1.399 `evaluationId`**, `score` persistido, `legacy` recalculado, resultado ponderado estimado, etiquetas del snapshot y los **9 casos excepcionales**. El campo del score corregido del Excel queda sin llenar hasta recibir el archivo verdadero.
+
+**Protocolo cuando llegue el Excel:** cruzar por **`evaluationId`**, NUNCA por orden de fila; detectar IDs exclusivos en DB/Excel, duplicados, faltantes, scores almacenados que ya coinciden con Excel y diferencias Excel vs cálculo P2. Clasificar las nueve anomalías sin forzar su recalculo y generar la matriz definitiva de actualización **solo tras revisión y aprobación explícita**.
+
+No se ejecutaron SQL UPDATE, modificaciones de snapshots, correos, acuses ni migraciones.
