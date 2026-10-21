@@ -395,3 +395,18 @@ En P2.1 están definidas dos columnas nuevas (Prisma `Decimal? @db.Decimal(5,2)`
 Se entregó el SQL **`MEJ-006-PRODUCCION-00-esquema-pesos-grupos.sql`** para aplicar ambas columnas con `ADD COLUMN IF NOT EXISTS`, restricciones CHECK de 0–100, validación de tipo y verificación del periodo 6 con ocho snapshots y pesos `NULL`; no contiene `UPDATE` de pesos, respuestas ni puntajes. **Este archivo se ha preparado, no ejecutado desde ChatGPT.** Los nombres de restricciones de este script deben conciliarse con la migración Prisma antes de una posterior ejecución formal de migraciones, para evitar restricciones lógicamente duplicadas o migraciones pendientes marcadas erróneamente.
 
 **Siguientes controles en producción:** confirmar backup/host; ejecutar DDL, verificar columna y `weight_percentage=NULL` de periodo 6; inspeccionar también si otros periodos nuevos requieren snapshot ponderado válido, **sin rellenarlos automáticamente**; correr `01-PREVALIDACION.sql` de nuevo completamente y revisar controles de 1.399/1.206/193/42/405. Si difiere cualquier registro productivo, detener y regenerar matriz desde inventario productivo: no omitir controles. Solo pasar a `02-APLICAR.sql` luego de las salvaguardas de respaldo y PDF/acuse que figuran en sección 12.
+
+
+## 14. Aplicación productiva reportada y verificación parcial (2026-10-21)
+
+**Ejecución reportada por el responsable en producción.** Tras agregar las columnas de pesos P2 a `evaluation.question_groups` y `evaluation.period_groups`, el responsable ejecutó `02-APLICAR.sql` y `03-VERIFICAR.sql` en el servidor identificado previamente como `172.31.9.6` / base `sisproing`. Las capturas entregadas muestran:
+
+- Resumen del SQL de aplicación: **1.399 completadas; 1.206 cambios de score planificados; 193 sin cambios; 42 cambios de clasificación; 405 acuses asociados a cambios de score**. Este resumen, por sí solo, no acredita el número afectado físicamente por el `UPDATE`.
+- Consulta 3 de `03-VERIFICAR.sql`: **`discrepancias_post_update = 0`**. Compara la tabla productiva `evaluation.evaluations` con `evaluation.mej006_backup_period6_v1` en identidad, periodo, estado, `is_active`, acuse y fecha de acuse, `score` y `rating_label` esperados.
+- **Existe respaldo persistente**, pues `03-VERIFICAR.sql` pudo consultar la tabla `evaluation.mej006_backup_period6_v1`; confirmar igualmente `universo_backup=1399` mediante la primera consulta de ese archivo.
+
+**Pendientes de evidencia para cierre definitivo:** capturas o resultados de la primera consulta de `03-VERIFICAR.sql` (`universo_backup=1399`), cuarta consulta (muestra `8120: old_score 61,8; expected_new_score=score_actual=61,4`), quinta consulta (**`respuestas_con_huella_diferente=0`**), y un inventario postproductivo con `--inventory-only` para cotejo integral. Conservar el respaldo original, no reejecutar `02-APLICAR.sql`; su `CREATE TABLE` está concebido para fallar si ya existe. El `ROLLBACK` al final del archivo 03 es **normal**, porque 03 comienza con una transacción `READ ONLY`.
+
+**Control funcional y documental pendiente:** verificar reporte/PDF de muestra 8120 en producción; conservar el PDF originalmente aceptado separado de la versión rectificada, sin considerar el acuse original como aceptación del nuevo puntaje. Aprobar registro y comunicación con Gestión Humana para las 42 reclasificaciones y 405 evaluaciones con acuse cuyo puntaje varió. Mantener resguardo externo del backup antes de considerar la tarea cerrada.
+
+**Estado:** **ACTUALIZACIÓN PRODUCTIVA REPORTADA; contraste post-update de score/estado/acuse OK con cero discrepancias; integridad completa de huellas y PDF pendiente de evidencia en este hilo.**
