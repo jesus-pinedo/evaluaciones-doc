@@ -253,6 +253,10 @@ El responsable retomó la corrección de las calificaciones históricas del peri
 
 Codex implementó el simulador estrictamente de solo lectura `api/scripts/mej-006-dry-run-2025.mjs`, `mej006DryRun.utils.js` y pruebas. Reportó **38 pruebas aprobadas, 0 fallidas, 1 integración PostgreSQL omitida**, control sintético 8120 **61,8 % → 61,4 %**, y exportación CSV/JSON. **No ejecutó el análisis de 2025 real** porque no había conexión autorizada `MEJ006_READONLY_DATABASE_URL`; permanecen sin comprobar `periodId`, IDs snapshot, conteos y diferencias reales. Próximo paso: acceso PostgreSQL con rol solo lectura → inventario del periodo → mapa de 8 IDs validado → ejecutar dry-run → revisar resultados y política documental antes de aprobar cualquier escritura. No convertir snapshots LEGACY en WEIGHTED ni modificar scores aún. Referencia: [MEJ-006, sección 7](MEJ-006-recalculo-historico-2025.md#7-mej-0061--implementación-del-dry-run-de-solo-lectura-2026-10-21).
 
+### MEJ-007 — Consulta de evaluación anterior durante diligenciamiento (propuesta 2026-10-21)
+
+El responsable solicita que quien diligencia una evaluación 2026 pueda **consultar la última evaluación COMPLETED anterior de ese mismo empleado**. Se propone **panel lateral de solo lectura con formulario actual visible** y **PDF completo como acción secundaria**, no un modal bloqueante ni un PDF como única visualización. La consulta se resuelve por `employeeId` del evaluado, incluso si cambió el jefe; permisos exclusivamente a quien está autorizado para la evaluación actual. P4 documenta que el endpoint PDF exige ser el evaluador histórico o tener permiso de Reportes: requiere ruta/capacidad acotada, nunca aflojar autorización global ni exponer IDs arbitrarios. Mantener score histórico **persistido** tras MEJ-006, sin recalcular con pesos NULL. Diseño [MEJ-007](MEJ-007-consulta-evaluacion-anterior.md). **Estado: propuesta de diseño, pendiente de aprobación funcional y desarrollo; no se tocó código de API/React.**
+
 ## 9. Fuentes de referencia
 
 - [Contexto funcional](../funcional/contexto-funcional.md)
