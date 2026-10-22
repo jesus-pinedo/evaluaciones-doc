@@ -2,7 +2,7 @@
 
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Decisión funcional:** 2026-10-21  
-**Estado:** **Diseño aprobado — descarga PDF exclusivamente; pendiente de implementación y pruebas**.  
+**Estado:** **Implementado en código y validado con pruebas dirigidas; pendiente de validación integrada con sesión/datos reales**.
 **Origen:** el responsable requiere consultar la evaluación previa mientras diligencia la evaluación actual, sin restarle espacio ni protagonismo al formulario de 2026.
 
 ## 1. Decisión de experiencia de usuario
@@ -56,3 +56,99 @@ El PDF debe mostrar el **score persistido** de la evaluación `COMPLETED` (recti
 6. La operación es solo lectura, no altera el progreso, respuestas, autoguardado ni los metadatos de la evaluación actual.
 7. Typecheck, pruebas dirigidas y validación responsiva. Documentar resultados reales y dejar pendientes visibles.
 8. Sin migraciones ni commits locales automáticos.
+
+## 7. Implementación realizada (2026-10-21)
+
+### 7.1 Diagnóstico y decisiones técnicas verificadas
+
+- El formulario vigente está en `sisproing-app/src/modules/employee-evaluations/evaluations/pages/EvaluationsForm.tsx`; el título y periodo/cargo se renderizan antes del `<form>`. La acción nueva se agregó en ese encabezado mediante un componente aislado, sin modificar `useEvaluationForm`, autoguardado, respuestas, finalización ni navegación.
+- `apiFetch` ya agrega el JWT en `Authorization: Bearer` y soporta `responseType: 'blob'`; se reutilizó ese contrato. El JWT no se coloca en query string ni URL de descarga.
+- El generador existente es `api/src/modules/employee-evaluations/evaluations/evaluationPdf.service.js#generateEvaluationPdf`; la ruta nueva lo invoca directamente con el histórico resuelto por el servidor. No se creó ni duplicó un motor PDF.
+- El DTO que alimenta la vista PDF, `evaluations.helper.js#formatEvaluationForFrontend`, usa `Evaluation.score` persistido cuando `status=COMPLETED`. La prueba dirigida confirma que un valor persistido `61.4` llega como `meta.score=61.4`, sin recalcular LEGACY.
+- El flujo operativo vigente identifica al evaluador mediante `JWT.sub → req.user.id`: overview, listado y autorización del PDF existente comparan ese valor con `Evaluation.evaluatorId`. Aunque el modelo Prisma relaciona `evaluatorId` con `Employee.id`, no está demostrado que el SSO y Gestión Humana compartan formalmente el mismo dominio de IDs. MEJ-007 conserva esta política vigente únicamente para autorizar la evaluación actual; no modifica el contrato global SSO/JWT ni presenta esa comparación como solución definitiva de identidad.
+
+### 7.2 Backend implementado
+
+Nuevas rutas autenticadas bajo el middleware JWT global:
+
+- `GET /api/employee-evaluations/evaluations/:currentEvaluationId/previous`
+- `GET /api/employee-evaluations/evaluations/:currentEvaluationId/previous/pdf`
+
+Ambas rutas:
+
+1. reciben únicamente el ID de la evaluación actual;
+2. toman el usuario autenticado de `req.user.id`, ya derivado de `JWT.sub` por el middleware vigente;
+3. comprueban que la evaluación actual existe, está activa y que `Number(req.user.id) === Number(current.evaluatorId)`;
+4. derivan `current.employeeId` y el inicio del periodo en servidor;
+5. buscan `COMPLETED`, `isActive=true`, del mismo evaluado y con `period.endDate < current.period.startDate`;
+6. ordenan por fin de periodo descendente, inicio descendente, `periodId` descendente e `evaluationId` descendente;
+7. no filtran por evaluador histórico, por lo que admiten un jefe anterior diferente;
+8. no aceptan `employeeId` ni `historicalEvaluationId` del cliente.
+
+La ruta de disponibilidad devuelve solo `available` y, cuando corresponde, `periodName` y un nombre de archivo seguro. La descarga vuelve a resolver el histórico, responde 404 si ya no existe y entrega `Cache-Control: private, no-store`. No se modificaron las reglas del endpoint general `GET /evaluations/:id/pdf`.
+
+El `employeeId` del JWT no participa en esta autorización: un token existente sin ese claim y un token que contenga `employeeId=null` siguen usando `sub/req.user.id`, sin exigir renovación de sesión. Si el usuario autenticado no es propietario de la evaluación actual, el servidor responde 403 antes de consultar cualquier histórico. La búsqueda posterior utiliza exclusivamente `currentEvaluation.employeeId`, que es el empleado **evaluado**, y nunca el identificador del evaluador histórico.
+
+**Riesgo conservado y delimitado:** esta comparación numérica mantiene compatibilidad con el flujo actual, pero no demuestra que `userId` y `Employee.id` sean identidades equivalentes. La normalización formal del contrato SSO debe tratarse como una mejora transversal separada, después de verificar el origen del payload y su cobertura; no debe introducirse de forma incidental en MEJ-007.
+
+### 7.3 Frontend implementado
+
+`PreviousEvaluationDownloadButton` consulta disponibilidad al cargar la evaluación y no renderiza nada cuando `available=false` o la consulta auxiliar falla. Si hay histórico, muestra el botón outline **«Descargar evaluación anterior»** debajo del periodo/cargo, con icono de descarga.
+
+Durante la descarga deshabilita la acción y muestra **«Descargando...»**. Descarga el Blob autenticado mediante un enlace temporal con nombre entregado por el servidor, elimina el enlace y revoca la URL objeto. Los errores de descarga usan la notificación no intrusiva existente. No hay modal, panel, vista dividida ni previsualización.
+
+### 7.4 Archivos modificados por MEJ-007
+
+**API**
+
+- `src/modules/employee-evaluations/evaluations/previousEvaluation.utils.js` (nuevo)
+- `src/modules/employee-evaluations/evaluations/evaluations.service.js`
+- `src/modules/employee-evaluations/evaluations/evaluations.controller.js`
+- `src/modules/employee-evaluations/evaluations/evaluations.route.js`
+- `tests/employee-evaluations/mej-007-previous-evaluation.test.mjs` (nuevo)
+
+**Frontend**
+
+- `src/modules/employee-evaluations/evaluations/components/PreviousEvaluationDownloadButton.tsx` (nuevo)
+- `src/modules/employee-evaluations/evaluations/components/Icons.tsx`
+- `src/modules/employee-evaluations/evaluations/evaluations.service.ts`
+- `src/modules/employee-evaluations/evaluations/pages/EvaluationsForm.tsx`
+
+**Documentación**
+
+- `docs/mejoras/MEJ-007-consulta-evaluacion-anterior.md`
+
+No se modificaron esquema Prisma, migraciones, periodos, snapshots, respuestas, calificaciones, acuses ni datos históricos. No se enviaron correos ni se crearon commits.
+
+Tras la revisión específica de autenticación, `api/src/modules/auth/auth.service.js` y `api/src/core/middlewares/auth.middleware.js` quedaron exactamente sin cambios atribuibles a MEJ-007. El helper temporal `authIdentity.utils.js` fue eliminado porque quedó sin referencias.
+
+### 7.5 Pruebas ejecutadas
+
+| Verificación | Resultado |
+|---|---|
+| Línea base previa: `npm run typecheck` en frontend | **Aprobada** |
+| Línea base previa: `npm run type-check` en API | **Aprobada** |
+| `node --check` de los archivos JS backend tocados/nuevos | **Aprobada** |
+| `node --test tests/employee-evaluations/mej-007-previous-evaluation.test.mjs` | **8/8 aprobadas** |
+| JWT existente sin claim `employeeId` | **Aprobada:** autentica, conserva `sub → req.user.id` y autoriza la evaluación actual propia |
+| JWT con `employeeId=null` | **Aprobada:** autentica y autoriza la evaluación actual propia sin depender del claim |
+| IDOR: `currentEvaluationId` perteneciente a otro evaluador | **Aprobada:** 403 lógico antes de ejecutar la consulta histórica |
+| Selección: mismo evaluado, solo `COMPLETED` activo, periodo anterior, sin filtro por jefe histórico, orden determinista | **Aprobada** |
+| Ausencia de histórico retorna resultado vacío controlado | **Aprobada** |
+| Descarga/resolución de histórico no modifica la evaluación actual | **Aprobada:** únicamente `findUnique` y `findFirst`; ninguna operación de escritura |
+| Contrato PDF: nombre seguro y `score` persistido del caso sintético 8120 = `61.4` | **Aprobada** |
+| `npm run type-check` en API después del cambio | **Aprobada** |
+| `npm run build` en API después del cambio | **Aprobada** |
+| `npm run typecheck` y `npm run build` en frontend después del cambio | **Aprobadas** |
+| Render Chromium de la vista PDF del build, con fixture sintético 8120 | **Aprobada:** A4, 2 páginas, 397.153 bytes, sin errores de página; contiene `8120` y `61.4%` antes de emitir el PDF |
+| `git diff --check` en API y frontend | **Aprobada** |
+
+El lint dirigido del componente nuevo y del icono frontend pasó. El lint dirigido de archivos frontend ya existentes reportó cuatro usos preexistentes de `any` (`evaluations.service.ts` y `EvaluationsForm.tsx`) fuera de las líneas agregadas. El repositorio API no tiene ESLint instalado/configurado localmente; `npx eslint` intentó usar ESLint 10 y no encontró `eslint.config.*`, por lo que se usaron `node --check`, typecheck y pruebas ejecutables como validación backend.
+
+La suite general `npm test -- --runInBand` continúa fallando por una incompatibilidad preexistente: Jest 30 descubre seis archivos construidos con `node:test`, ejecuta sus casos (la salida del runner Node registra 50 aprobados y 1 omitido) y después marca cada archivo con «Your test suite must contain at least one test». El test MEJ-007 se dejó como `.test.mjs` para ejecutarlo explícitamente con `node --test` y evitar agregar otro falso fallo al patrón Jest configurado para `.test.js`.
+
+### 7.6 Pendientes de validación integrada
+
+- Verificar en una mejora transversal separada si `JWT.sub/userId` y `gestion_humana.gh_empleados.em_id` comparten realmente el mismo dominio. MEJ-007 conserva la política operativa actual, pero no resuelve ese contrato.
+- Ejecutar en navegador los casos con datos autorizados: jefe anterior diferente, ausencia de histórico, histórico `PENDING` excluido, manipulación de `currentEvaluationId` y descarga real.
+- Descargar el PDF productivo de control 8120 y confirmar visualmente `61,4 %`. La prueba automatizada demuestra que el código usa el valor persistido y que la vista lo renderiza; no consultó la base productiva. La evidencia de MEJ-006 registra la actualización productiva reportada a 61,4, pero mantiene pendiente esa validación funcional.
