@@ -3,6 +3,7 @@
 **Proyecto:** PROING — Evaluación de Desempeño HF-011  
 **Decisión funcional:** 2026-10-21  
 **Estado:** **Implementado en código y validado con pruebas dirigidas; pendiente de validación integrada con sesión/datos reales**.
+**Estado:** **Implementación inicial reportada; ajuste de identidad SSO aprobado y pendiente de aplicar/validar**.  
 **Origen:** el responsable requiere consultar la evaluación previa mientras diligencia la evaluación actual, sin restarle espacio ni protagonismo al formulario de 2026.
 
 ## 1. Decisión de experiencia de usuario
@@ -57,6 +58,7 @@ El PDF debe mostrar el **score persistido** de la evaluación `COMPLETED` (recti
 7. Typecheck, pruebas dirigidas y validación responsiva. Documentar resultados reales y dejar pendientes visibles.
 8. Sin migraciones ni commits locales automáticos.
 
+<<<<<<< HEAD
 ## 7. Implementación realizada (2026-10-21)
 
 ### 7.1 Diagnóstico y decisiones técnicas verificadas
@@ -152,3 +154,17 @@ La suite general `npm test -- --runInBand` continúa fallando por una incompatib
 - Verificar en una mejora transversal separada si `JWT.sub/userId` y `gestion_humana.gh_empleados.em_id` comparten realmente el mismo dominio. MEJ-007 conserva la política operativa actual, pero no resuelve ese contrato.
 - Ejecutar en navegador los casos con datos autorizados: jefe anterior diferente, ausencia de histórico, histórico `PENDING` excluido, manipulación de `currentEvaluationId` y descarga real.
 - Descargar el PDF productivo de control 8120 y confirmar visualmente `61,4 %`. La prueba automatizada demuestra que el código usa el valor persistido y que la vista lo renderiza; no consultó la base productiva. La evidencia de MEJ-006 registra la actualización productiva reportada a 61,4, pero mantiene pendiente esa validación funcional.
+=======
+
+## 7. Revisión de identidad SSO y decisión de compatibilidad (2026-10-21)
+
+**Diagnóstico de Codex (sin cambios de código en la revisión):** la implementación inicial de MEJ-007 incorporó el claim global `employeeId` al JWT mediante `auth.service.js`, lo propagó mediante `auth.middleware.js` y añadió `authIdentity.utils.js`. Este dato se toma literalmente de `payload.employeeId` del SSO legado en Redis; **no está garantizado** que exista para todos los usuarios. Se observó `employeeId=null` en una sesión. El endpoint histórico nuevo exigía `req.user.employeeId`; por ello podía retornar 403 y ocultar el botón tanto para JWT antiguos sin claim como para JWT nuevos con claim nulo, aunque la evaluación actual pudiera diligenciarse normalmente.
+
+**Decisión aprobada para el alcance limitado de MEJ-007:** revertir exclusivamente los cambios globales de JWT/SSO añadidos para esta mejora, siempre que no sean utilizados por otra funcionalidad, y reutilizar el mismo mecanismo de identificación ya usado en el módulo de evaluaciones: tras validar JWT y cargar `currentEvaluationId`, exigir `Number(req.user.id) === currentEvaluation.evaluatorId`; **solo después** derivar `currentEvaluation.employeeId` y buscar la evaluación histórica del empleado evaluado. No usar `historical.evaluatorId` como filtro; no recibir `employeeId` o `historicalEvaluationId` del cliente para autorizar. Conservar comprobaciones de permisos/propiedad en servidor y no expandir el acceso de `GET /evaluations/:id/pdf`.
+
+**Límite de seguridad pendiente:** el esquema actual presupone para sus endpoints de evaluador que `JWT.sub` es compatible numéricamente con `Evaluation.evaluatorId`. La comprobación de igualdad mantiene la política preexistente, **pero no demuestra un vínculo SSO usuario↔empleado confiable**. Codex debe verificar con pruebas negativas, contraste de casos reales autorizados y casos de IDs cruzados que no aparezca un acceso indebido; no afirmar que la igualdad por sí sola resuelve el problema transversal. La normalización formal y fiable de `userId ↔ employeeId` se trabajará como mejora de autenticación separada, con contrato SSO comprobado.
+
+**Regresión exigida:** usuario con JWT existente sin `employeeId` puede descargar histórico de un evaluado que tiene asignado; JWT con `employeeId=null` no oculta botón si el usuario está autorizado mediante mecanismo vigente; otro usuario que altera `currentEvaluationId` recibe 403/404; cambio de evaluador entre periodos no restringe búsqueda del evaluado; histórico sin `COMPLETED` no muestra acción; solicitud PDF no altera borrador/autoguardado y no crea acuses. Incluir `node:test`, typecheck, build y prueba con SSO real si hay acceso. No migraciones ni commits automáticos.
+
+**Estado:** cambios iniciales MEJ-007 reportados por Codex, **pendientes del ajuste aprobado**; no desplegar versión que exige el nuevo claim global. Actualizar estado y evidencia después de ejecutar la corrección puntual y sus pruebas.
+>>>>>>> 940fa257fce679992e5c14b81025ebf4c22dcc7e
