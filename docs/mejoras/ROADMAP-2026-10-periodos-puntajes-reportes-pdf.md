@@ -259,7 +259,7 @@ Se sustituyó la propuesta previa de **panel lateral/vista dividida** por **un b
 
 Backend protegido y de solo lectura: buscar histórico desde `currentEvaluationId` validado, no por evaluador histórico, ya que el jefe puede cambiar; reutilizar generador PDF y **no abrir** permisos globales del endpoint de P4. Mantener score histórico persistido (8120=61,4 %), respuestas y acuse intactos. Sin mutaciones de DB, migraciones ni nuevo motor PDF.
 
-Plan y aceptación: [MEJ-007](MEJ-007-consulta-evaluacion-anterior.md). **Estado: UX aprobada; código pendiente de implementar y validar.**
+Plan y aceptación: [MEJ-007](MEJ-007-consulta-evaluacion-anterior.md). **Estado: API + React implementados; 8/8 pruebas dirigidas, typechecks y builds aprobados; responsable confirmó funcionamiento en pruebas el 2026-10-21. Pendiente únicamente despliegue y smoke test en producción.** No requiere renovación de JWT, migraciones ni cambios de SSO global; conserva deuda transversal de identidad `userId`/`employeeId`.
 
 ## 9. Fuentes de referencia
 
